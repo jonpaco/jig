@@ -1,12 +1,15 @@
 #import <Foundation/Foundation.h>
+#import <Network/Network.h>
+
+@class JigHandshakeHandler;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface JigWebSocketServer : NSObject
 
 - (instancetype)initWithPort:(uint16_t)port
-                   rnVersion:(NSString *)rnVersion
-                expoVersion:(nullable NSString *)expoVersion;
+                     handler:(JigHandshakeHandler *)handler
+                       error:(NSError **)error;
 - (void)start;
 - (void)stop;
 
