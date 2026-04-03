@@ -30,6 +30,22 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/cli:
+    dependencies:
+      '@jig/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.14
+        version: 8.18.1
+
   packages/native:
     dependencies:
       expo:
@@ -1237,6 +1253,9 @@ packages:
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
 
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
 
@@ -1534,6 +1553,10 @@ packages:
 
   commander@12.1.0:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
+
+  commander@13.1.0:
+    resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
     engines: {node: '>=18'}
 
   commander@2.20.3:
@@ -4660,6 +4683,10 @@ snapshots:
 
   '@types/stack-utils@2.0.3': {}
 
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 25.5.2
+
   '@types/yargs-parser@21.0.3': {}
 
   '@types/yargs@17.0.35':
@@ -4994,6 +5021,8 @@ snapshots:
   color-name@1.1.4: {}
 
   commander@12.1.0: {}
+
+  commander@13.1.0: {}
 
   commander@2.20.3: {}
 
