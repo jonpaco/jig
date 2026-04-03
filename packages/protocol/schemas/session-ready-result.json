@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SessionReadyResult",
+  "description": "Result payload for the session.ready response confirming the handshake",
+  "type": "object",
+  "properties": {
+    "sessionId": { "type": "string" },
+    "negotiated": {
+      "type": "object",
+      "properties": {
+        "protocol": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["protocol"],
+      "additionalProperties": false
+    },
+    "enabled": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rejected": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["sessionId", "negotiated", "enabled", "rejected"],
+  "additionalProperties": false
+}
