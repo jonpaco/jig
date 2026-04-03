@@ -1,0 +1,22 @@
+{
+  "name": "jig",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "jest",
+    "clean": "pnpm -r run clean",
+    "codegen": "pnpm --filter @jig/protocol run codegen"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.11.0",
+    "@swc/jest": "^0.2.38",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
