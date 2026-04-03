@@ -8,8 +8,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface JigWebSocketServer : NSObject
 
 - (instancetype)initWithPort:(uint16_t)port
-                     handler:(JigHandshakeHandler *)handler
-                       error:(NSError **)error;
+                     handler:(JigHandshakeHandler *)handler;
 - (void)start;
 - (void)stop;
 

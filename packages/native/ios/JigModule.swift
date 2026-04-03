@@ -18,10 +18,8 @@ public class JigModule: Module {
                 expoVersion: expoVersion
             )
 
-            var error: NSError?
-            let server = JigWebSocketServer(port: port, handler: handler, error: &error)
-            if let error = error { throw error }
-            server?.start()
+            let server = JigWebSocketServer(port: port, handler: handler)
+            server.start()
             self.server = server
         }
 

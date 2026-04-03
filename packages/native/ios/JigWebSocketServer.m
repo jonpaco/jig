@@ -12,8 +12,7 @@
 @implementation JigWebSocketServer
 
 - (instancetype)initWithPort:(uint16_t)port
-                     handler:(JigHandshakeHandler *)handler
-                       error:(NSError **)error {
+                     handler:(JigHandshakeHandler *)handler {
     self = [super init];
     if (self) {
         _handler = handler;
@@ -34,10 +33,7 @@
             parameters);
 
         if (!_listener) {
-            if (error) {
-                *error = [NSError errorWithDomain:@"JigError" code:1
-                    userInfo:@{NSLocalizedDescriptionKey: @"Failed to create listener"}];
-            }
+            NSLog(@"[Jig] Failed to create listener on port %d", port);
             return nil;
         }
     }
@@ -107,19 +103,16 @@
             return;
         }
 
-        nw_protocol_metadata_t metadata = nw_content_context_copy_protocol_metadata(context, nw_ws_definition());
-        if (metadata && nw_ws_metadata_get_opcode(metadata) == nw_ws_opcode_text) {
-            const void *buffer;
-            size_t size;
-            dispatch_data_t mapped = dispatch_data_create_map(content, &buffer, &size);
-            NSString *text = [[NSString alloc] initWithBytes:buffer length:size encoding:NSUTF8StringEncoding];
-            (void)mapped; // prevent early release
+        const void *buffer;
+        size_t size;
+        dispatch_data_t mapped = dispatch_data_create_map(content, &buffer, &size);
+        NSString *text = [[NSString alloc] initWithBytes:buffer length:size encoding:NSUTF8StringEncoding];
+        (void)mapped; // prevent early release
 
-            if (text) {
-                NSString *response = [weakSelf.handler handleMessage:text];
-                if (response) {
-                    [weakSelf sendText:response toConnection:connection];
-                }
+        if (text) {
+            NSString *response = [weakSelf.handler handleMessage:text];
+            if (response) {
+                [weakSelf sendText:response toConnection:connection];
             }
         }
 
