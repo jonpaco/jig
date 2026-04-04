@@ -80,12 +80,14 @@ jobs:
         run: |
           SCHEME=$(xcodebuild -workspace *.xcworkspace -list 2>/dev/null | sed -n '/Schemes:/,/^$/p' | grep -v 'Schemes:' | head -1 | xargs)
           echo "Building scheme: $SCHEME"
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import sys,json; devs=[d for r in json.load(sys.stdin)['devices'].values() for d in r if 'iPhone 16' in d['name'] and d['isAvailable']]; print(devs[0]['udid'])")
+          echo "Target device: $DEVICE_ID"
           xcodebuild \
             -workspace *.xcworkspace \
             -scheme "$SCHEME" \
             -sdk iphonesimulator \
             -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "id=$DEVICE_ID" \
             -derivedDataPath /tmp/ios-build \
             build
 
@@ -96,7 +98,9 @@ jobs:
 
       - name: Install and launch app
         run: |
-          APP_PATH=$(find /tmp/ios-build -name "*.app" -path "*/Debug-iphonesimulator/*" -type d | head -1)
+          echo "Build output contents:"
+          find /tmp/ios-build -name "*.app" -type d
+          APP_PATH=$(find /tmp/ios-build -name "*.app" -type d | head -1)
           echo "Found app: $APP_PATH"
           xcrun simctl install booted "$APP_PATH"
           BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist")
