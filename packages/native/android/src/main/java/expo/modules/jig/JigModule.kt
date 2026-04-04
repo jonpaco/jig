@@ -1,6 +1,7 @@
 package expo.modules.jig
 
 import expo.modules.jig.handlers.HandshakeHandler
+import expo.modules.jig.handlers.ScreenshotHandler
 import expo.modules.jig.middleware.DomainGuard
 import expo.modules.jig.middleware.HandshakeGate
 import expo.modules.kotlin.modules.Module
@@ -38,6 +39,7 @@ class JigModule : Module() {
             )
             val handlers = listOf<JigHandler>(
                 HandshakeHandler(),
+                ScreenshotHandler { appContext.currentActivity },
             )
             val dispatcher = JigDispatcher(
                 middlewares, handlers, supportedDomains
