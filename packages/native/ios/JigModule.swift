@@ -1,3 +1,5 @@
+// ios/JigModule.swift
+
 import ExpoModulesCore
 
 public class JigModule: Module {
@@ -13,12 +15,42 @@ public class JigModule: Module {
             let expoVersion = config["expoVersion"] as? String
             let port = UInt16(config["port"] as? Int ?? 4042)
 
-            let handler = JigHandshakeHandler(
+            let appName = Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleName") as? String ?? "Unknown"
+            let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+
+            let appInfo = JigAppInfo(
+                name: appName,
+                bundleId: bundleId,
+                platform: "ios",
                 rnVersion: rnVersion,
                 expoVersion: expoVersion
             )
 
-            let server = JigWebSocketServer(port: port, handler: handler)
+            let supportedDomains: [String] = []
+
+            let middlewares: [JigMiddleware] = [
+                JigHandshakeGate(),
+                JigDomainGuard(supportedDomains: supportedDomains),
+            ]
+            let handlers: [JigHandler] = [
+                JigHandshakeHandler(),
+            ]
+
+            let queue = DispatchQueue(label: "jig.websocket")
+            let dispatcher = JigDispatcher(
+                middlewares: middlewares,
+                handlers: handlers,
+                supportedDomains: supportedDomains,
+                queue: queue
+            )
+
+            let server = JigWebSocketServer(
+                port: port,
+                dispatcher: dispatcher,
+                appInfo: appInfo,
+                queue: queue
+            )
             server.start()
             self.server = server
         }
