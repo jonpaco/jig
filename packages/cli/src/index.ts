@@ -21,6 +21,8 @@ program
         host: opts.host,
         port: parseInt(opts.port, 10),
         timeout: parseInt(opts.timeout, 10),
+        clientName: '@jig/cli',
+        clientVersion: '0.1.0',
       });
       console.log(output);
     } catch (err: unknown) {

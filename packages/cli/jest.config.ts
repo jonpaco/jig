@@ -10,6 +10,7 @@ const config: Config = {
   },
   moduleNameMapper: {
     '^@jig/protocol$': '<rootDir>/../protocol/src',
+    '^@jig/sdk$': '<rootDir>/../sdk/src',
   },
 };
 
