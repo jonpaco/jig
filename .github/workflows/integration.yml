@@ -110,14 +110,17 @@ jobs:
           sleep 5
 
       - name: Wait for Jig connection
+        working-directory: /tmp/habit-tracker
         run: npx jig wait --timeout 30000
 
       - name: Check status
+        working-directory: /tmp/habit-tracker
         run: npx jig status
 
       - name: Take screenshot
+        working-directory: /tmp/habit-tracker
         run: |
-          npx tsx scripts/screenshot.ts
+          npx tsx $GITHUB_WORKSPACE/scripts/screenshot.ts
           test -s screenshot.png && echo "Screenshot captured" || (echo "Screenshot missing or empty" && exit 1)
 
       - name: Capture device logs (on failure)
@@ -240,6 +243,8 @@ jobs:
 
             sleep 5
 
+            cd /tmp/habit-tracker
+
             echo "Waiting for Jig connection..."
             npx jig wait --timeout 30000
 
@@ -247,7 +252,7 @@ jobs:
             npx jig status
 
             echo "Taking screenshot..."
-            npx tsx scripts/screenshot.ts
+            npx tsx $GITHUB_WORKSPACE/scripts/screenshot.ts
             test -s screenshot.png && echo "Screenshot captured" || (echo "Screenshot missing or empty" && exit 1)
 
       - name: Capture logcat (on failure)
