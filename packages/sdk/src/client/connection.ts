@@ -88,8 +88,28 @@ function createSession(
 
   // Replace the handshake message handler with the command response router
   ws.removeAllListeners('message');
+  ws.removeAllListeners('error');
+  ws.on('error', (err) => {
+    for (const entry of pending.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(new Error(`Connection error: ${err.message}`));
+    }
+    pending.clear();
+  });
+  ws.on('close', () => {
+    for (const entry of pending.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(new Error('Connection closed'));
+    }
+    pending.clear();
+  });
   ws.on('message', (raw: WebSocket.RawData) => {
-    const msg = JSON.parse(raw.toString());
+    let msg: any;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
     if (msg.id != null && pending.has(msg.id)) {
       const entry = pending.get(msg.id)!;
       pending.delete(msg.id);
