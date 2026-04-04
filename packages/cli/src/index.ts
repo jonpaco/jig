@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { status } from './commands/status';
 import { wait } from './commands/wait';
+import { launch } from './commands/launch';
 
 const program = new Command();
 
@@ -47,6 +48,29 @@ program
         port: parseInt(opts.port, 10),
         timeout: parseInt(opts.timeout, 10),
         interval: parseInt(opts.interval, 10),
+      });
+      console.log(output);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`✗ ${message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('launch')
+  .description('Install and launch an app on iOS simulator with Jig injected')
+  .argument('<app-path>', 'Path to the .app bundle')
+  .option('--framework <path>', 'Path to Jig.framework (auto-detected if omitted)')
+  .option('-p, --port <port>', 'Jig server port', '4042')
+  .option('--skip-verify', 'Skip SHA-256 integrity check', false)
+  .action(async (appPath: string, opts) => {
+    try {
+      const output = await launch({
+        appPath,
+        framework: opts.framework,
+        port: parseInt(opts.port, 10),
+        skipVerify: opts.skipVerify,
       });
       console.log(output);
     } catch (err: unknown) {
