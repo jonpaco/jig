@@ -7,7 +7,6 @@
 #import "JigWebSocketServer.h"
 #import "JigDispatcher.h"
 #import "JigAppInfo.h"
-#import "JigSessionContext.h"
 #import "handlers/JigHandshakeHandler.h"
 #import "handlers/JigScreenshotHandler.h"
 #import "middleware/JigHandshakeGate.h"
