@@ -78,7 +78,8 @@ jobs:
       - name: Build iOS app
         working-directory: /tmp/habit-tracker/ios
         run: |
-          SCHEME=$(xcodebuild -workspace *.xcworkspace -list 2>/dev/null | sed -n '/Schemes:/,/^$/p' | grep -v 'Schemes:' | head -1 | xargs)
+          WORKSPACE=$(ls *.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           echo "Building scheme: $SCHEME"
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import sys,json; devs=[d for r in json.load(sys.stdin)['devices'].values() for d in r if 'iPhone 16' in d['name'] and d['isAvailable']]; print(devs[0]['udid'])")
           echo "Target device: $DEVICE_ID"
