@@ -11,10 +11,10 @@ pnpm monorepo:
 | Package | Path | Purpose |
 |---------|------|---------|
 | `@jig/protocol` | `packages/protocol/` | JSON Schema spec + generated TypeScript types |
-| `@jig/native` | `packages/native/` | React Native module — server, touch injection, view walking |
+| `@jig/native` | `packages/native/` | Native source (build-only) — server, touch injection, view walking |
 | `@jig/sdk` | `packages/sdk/` | TypeScript client — commands, events, element selection |
 | `@jig/jest` | `packages/jest/` | Jest preset — setup/teardown, matchers |
-| `@jig/cli` | `packages/cli/` | CLI — `jig status`, `jig wait`, `jig report` |
+| `@jig/cli` | `packages/cli/` | CLI — `jig launch`, `jig status`, `jig wait`, `jig report` |
 | `@jig/mcp` | `packages/mcp/` | MCP server — exposes Jig as tools for AI agents |
 
 | Other | Path | Purpose |
