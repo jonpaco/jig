@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ScreenshotResult",
+  "description": "Result of the jig.screenshot command",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "string",
+      "description": "Base64-encoded image bytes"
+    },
+    "format": {
+      "type": "string",
+      "enum": ["png", "jpeg"],
+      "description": "Actual format used"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Image width in pixels"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Image height in pixels"
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "Unix epoch milliseconds when capture occurred"
+    }
+  },
+  "required": ["data", "format", "width", "height", "timestamp"],
+  "additionalProperties": false
+}
