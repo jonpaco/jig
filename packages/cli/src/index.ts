@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { status } from './commands/status';
+import { wait } from './commands/wait';
 
 const program = new Command();
 
@@ -23,6 +24,29 @@ program
         timeout: parseInt(opts.timeout, 10),
         clientName: '@jig/cli',
         clientVersion: '0.1.0',
+      });
+      console.log(output);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`✗ ${message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('wait')
+  .description('Wait for a Jig-enabled app to become reachable')
+  .option('-H, --host <host>', 'Host to connect to', 'localhost')
+  .option('-p, --port <port>', 'Port to connect to', '4042')
+  .option('-t, --timeout <ms>', 'Total timeout in ms', '30000')
+  .option('-i, --interval <ms>', 'Retry interval in ms', '1000')
+  .action(async (opts) => {
+    try {
+      const output = await wait({
+        host: opts.host,
+        port: parseInt(opts.port, 10),
+        timeout: parseInt(opts.timeout, 10),
+        interval: parseInt(opts.interval, 10),
       });
       console.log(output);
     } catch (err: unknown) {
