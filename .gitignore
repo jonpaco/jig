@@ -6,3 +6,6 @@ dist/
 .worktrees/
 *.tgz
 screenshot.png
+
+# Native build output
+packages/native/build/
