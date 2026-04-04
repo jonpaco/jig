@@ -71,24 +71,16 @@ jobs:
           npm install /tmp/jig-tarballs/jig-sdk-*.tgz
           npm install /tmp/jig-tarballs/jig-cli-*.tgz
 
-      - name: Build iOS app
-        working-directory: /tmp/habit-tracker
-        run: npx expo run:ios --device generic --no-bundler -o /tmp/app-build
-
       - name: Boot iOS Simulator
         run: |
           xcrun simctl boot "iPhone 16" 2>/dev/null || true
           xcrun simctl list devices booted
 
-      - name: Install and launch app
+      - name: Build and run iOS app
+        working-directory: /tmp/habit-tracker
         run: |
-          APP_PATH=$(find /tmp/app-build -name "*.app" -type d | head -1)
-          echo "Installing $APP_PATH"
-          xcrun simctl install booted "$APP_PATH"
-          BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist")
-          echo "Launching $BUNDLE_ID"
-          xcrun simctl launch booted "$BUNDLE_ID"
-          sleep 3
+          npx expo run:ios --device "iPhone 16" --no-bundler
+          sleep 5
 
       - name: Wait for Jig connection
         run: npx jig wait --timeout 30000
