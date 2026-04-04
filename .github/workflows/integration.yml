@@ -71,9 +71,23 @@ jobs:
           npm install /tmp/jig-tarballs/jig-sdk-*.tgz
           npm install /tmp/jig-tarballs/jig-cli-*.tgz
 
-      - name: Build iOS app
+      - name: Expo prebuild (iOS)
         working-directory: /tmp/habit-tracker
-        run: npx expo run:ios --device generic --no-bundler
+        run: npx expo prebuild --platform ios
+
+      - name: Build iOS app
+        working-directory: /tmp/habit-tracker/ios
+        run: |
+          SCHEME=$(xcodebuild -workspace *.xcworkspace -list 2>/dev/null | sed -n '/Schemes:/,/^$/p' | grep -v 'Schemes:' | head -1 | xargs)
+          echo "Building scheme: $SCHEME"
+          xcodebuild \
+            -workspace *.xcworkspace \
+            -scheme "$SCHEME" \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath /tmp/ios-build \
+            build
 
       - name: Boot iOS Simulator
         run: |
@@ -82,7 +96,7 @@ jobs:
 
       - name: Install and launch app
         run: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" -path "*/Debug-iphonesimulator/*" -type d | head -1)
+          APP_PATH=$(find /tmp/ios-build -name "*.app" -path "*/Debug-iphonesimulator/*" -type d | head -1)
           echo "Found app: $APP_PATH"
           xcrun simctl install booted "$APP_PATH"
           BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist")
