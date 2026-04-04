@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@jig/sdk':
+        specifier: workspace:*
+        version: link:packages/sdk
     devDependencies:
       '@swc/core':
         specifier: ^1.11.0
