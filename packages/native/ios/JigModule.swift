@@ -35,6 +35,7 @@ public class JigModule: Module {
             ]
             let handlers: [JigHandler] = [
                 JigHandshakeHandler(),
+                JigScreenshotHandler(),
             ]
 
             let queue = DispatchQueue(label: "jig.websocket")
