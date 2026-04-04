@@ -1,2 +1,3 @@
-// Placeholder — populated in Task 3
-export {};
+export { connect, type ConnectOptions, type Session } from './client/connection';
+export { JigError } from './errors';
+export type { ScreenshotParams, ScreenshotResult } from '@jig/protocol';
