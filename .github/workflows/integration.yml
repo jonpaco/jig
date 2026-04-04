@@ -1,0 +1,276 @@
+name: Integration
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to test
+        type: choice
+        options:
+          - both
+          - ios
+          - android
+        default: both
+      debug:
+        description: Enable verbose logging
+        type: boolean
+        default: false
+
+jobs:
+  ios:
+    name: iOS Simulator
+    if: >-
+      github.event_name == 'pull_request' ||
+      inputs.platform == 'both' ||
+      inputs.platform == 'ios'
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Jig
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo
+        run: pnpm build
+
+      - name: Pack tarballs
+        run: |
+          mkdir -p /tmp/jig-tarballs
+          for pkg in protocol native sdk cli; do
+            pushd packages/$pkg
+            pnpm pack --pack-destination /tmp/jig-tarballs
+            popd
+          done
+          ls -la /tmp/jig-tarballs/
+
+      - name: Clone Habit Tracker
+        run: |
+          git clone --depth 1 https://github.com/jonpaco/open-source-habit-tracker-app.git /tmp/habit-tracker
+
+      - name: Install Jig into Habit Tracker
+        working-directory: /tmp/habit-tracker
+        run: |
+          npm install /tmp/jig-tarballs/jig-protocol-*.tgz
+          npm install /tmp/jig-tarballs/jig-native-*.tgz
+          npm install /tmp/jig-tarballs/jig-sdk-*.tgz
+          npm install /tmp/jig-tarballs/jig-cli-*.tgz
+
+      - name: Expo prebuild (iOS)
+        working-directory: /tmp/habit-tracker
+        run: npx expo prebuild --platform ios --no-install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: /tmp/habit-tracker/ios/Pods
+          key: pods-${{ hashFiles('/tmp/habit-tracker/ios/Podfile.lock') }}
+          restore-keys: pods-
+
+      - name: Pod install
+        working-directory: /tmp/habit-tracker/ios
+        run: pod install
+
+      - name: Build iOS app
+        working-directory: /tmp/habit-tracker/ios
+        run: |
+          xcodebuild \
+            -workspace *.xcworkspace \
+            -scheme "$(xcodebuild -workspace *.xcworkspace -list 2>/dev/null | grep -A1 'Schemes:' | tail -1 | xargs)" \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' \
+            -derivedDataPath build \
+            build \
+            | tail -20
+
+      - name: Boot iOS Simulator
+        run: |
+          xcrun simctl boot "iPhone 15" 2>/dev/null || true
+          xcrun simctl list devices booted
+
+      - name: Install and launch app
+        run: |
+          APP_PATH=$(find /tmp/habit-tracker/ios/build -name "*.app" -type d | head -1)
+          echo "Installing $APP_PATH"
+          xcrun simctl install booted "$APP_PATH"
+          BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP_PATH/Info.plist")
+          echo "Launching $BUNDLE_ID"
+          xcrun simctl launch booted "$BUNDLE_ID"
+          sleep 3
+
+      - name: Wait for Jig connection
+        run: npx jig wait --timeout 30000
+
+      - name: Check status
+        run: npx jig status
+
+      - name: Take screenshot
+        run: |
+          npx tsx scripts/screenshot.ts
+          test -s screenshot.png && echo "Screenshot captured" || (echo "Screenshot missing or empty" && exit 1)
+
+      - name: Capture device logs (on failure)
+        if: failure()
+        run: |
+          xcrun simctl spawn booted log collect --output /tmp/device-logs.logarchive 2>/dev/null || true
+
+      - name: Capture device logs (debug mode)
+        if: inputs.debug == true
+        run: |
+          xcrun simctl spawn booted log collect --output /tmp/device-logs.logarchive 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts
+          path: |
+            screenshot.png
+            /tmp/device-logs.logarchive
+          if-no-files-found: ignore
+
+  android:
+    name: Android Emulator
+    if: >-
+      github.event_name == 'pull_request' ||
+      inputs.platform == 'both' ||
+      inputs.platform == 'android'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Jig
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo
+        run: pnpm build
+
+      - name: Pack tarballs
+        run: |
+          mkdir -p /tmp/jig-tarballs
+          for pkg in protocol native sdk cli; do
+            pushd packages/$pkg
+            pnpm pack --pack-destination /tmp/jig-tarballs
+            popd
+          done
+          ls -la /tmp/jig-tarballs/
+
+      - name: Clone Habit Tracker
+        run: |
+          git clone --depth 1 https://github.com/jonpaco/open-source-habit-tracker-app.git /tmp/habit-tracker
+
+      - name: Install Jig into Habit Tracker
+        working-directory: /tmp/habit-tracker
+        run: |
+          npm install /tmp/jig-tarballs/jig-protocol-*.tgz
+          npm install /tmp/jig-tarballs/jig-native-*.tgz
+          npm install /tmp/jig-tarballs/jig-sdk-*.tgz
+          npm install /tmp/jig-tarballs/jig-cli-*.tgz
+
+      - name: Expo prebuild (Android)
+        working-directory: /tmp/habit-tracker
+        run: npx expo prebuild --platform android
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('/tmp/habit-tracker/android/**/*.gradle*', '/tmp/habit-tracker/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build Android app
+        working-directory: /tmp/habit-tracker/android
+        run: ./gradlew assembleDebug
+
+      - name: Run on Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            APK_PATH=$(find /tmp/habit-tracker/android -name "*.apk" -path "*/debug/*" | head -1)
+            echo "Installing $APK_PATH"
+            adb install "$APK_PATH"
+
+            PACKAGE=$(aapt dump badging "$APK_PATH" | grep package | awk -F"'" '{print $2}')
+            ACTIVITY=$(aapt dump badging "$APK_PATH" | grep launchable-activity | awk -F"'" '{print $2}')
+            echo "Launching $PACKAGE/$ACTIVITY"
+            adb shell am start -n "$PACKAGE/$ACTIVITY"
+
+            echo "Forwarding port 4042"
+            adb forward tcp:4042 tcp:4042
+
+            sleep 5
+
+            echo "Waiting for Jig connection..."
+            npx jig wait --timeout 30000
+
+            echo "Checking status..."
+            npx jig status
+
+            echo "Taking screenshot..."
+            npx tsx scripts/screenshot.ts
+            test -s screenshot.png && echo "Screenshot captured" || (echo "Screenshot missing or empty" && exit 1)
+
+      - name: Capture logcat (on failure)
+        if: failure()
+        run: |
+          adb logcat -d > /tmp/logcat.txt 2>/dev/null || true
+
+      - name: Capture logcat (debug mode)
+        if: inputs.debug == true
+        run: |
+          adb logcat -d > /tmp/logcat.txt 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: |
+            screenshot.png
+            /tmp/logcat.txt
+          if-no-files-found: ignore
