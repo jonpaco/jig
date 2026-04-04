@@ -1,0 +1,86 @@
+name: Integration
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ios:
+    name: iOS Injection Test
+    runs-on: macos-15
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo
+        run: pnpm build
+
+      - name: Build Jig.framework
+        run: cd packages/native && pnpm build:framework
+
+      - name: Download test app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: habit-tracker-ios
+          path: /tmp/test-app
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ vars.HABIT_TRACKER_BUILD_RUN_ID }}
+
+      - name: Extract test app
+        run: |
+          cd /tmp/test-app
+          tar -xzf habit-tracker-ios.tar.gz
+          APP_PATH=$(find /tmp/test-app -name "*.app" | head -1)
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Boot simulator
+        run: |
+          xcrun simctl boot "iPhone 16" 2>/dev/null || true
+          xcrun simctl bootstatus "iPhone 16" -b
+
+      - name: Launch app with Jig
+        run: node packages/cli/dist/index.js launch "$APP_PATH" --skip-verify
+
+      - name: Wait for Jig server
+        run: node packages/cli/dist/index.js wait --timeout 30000
+
+      - name: Verify connection
+        run: node packages/cli/dist/index.js status
+
+      - name: Capture screenshot
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const client = await connect();
+              const result = await client.screenshot();
+              require('fs').writeFileSync('/tmp/screenshot.png', Buffer.from(result.data, 'base64'));
+              console.log('Screenshot captured');
+              await client.disconnect();
+            })();
+          "
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-ios
+          path: /tmp/screenshot.png
+          retention-days: 7

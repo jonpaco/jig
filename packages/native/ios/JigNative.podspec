@@ -17,4 +17,5 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
 
   s.source_files = '**/*.{h,m,mm,swift}'
+  s.exclude_files = 'JigStandaloneInit.m'
 end

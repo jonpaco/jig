@@ -14,5 +14,8 @@
     "@jig/protocol": "workspace:*",
     "@jig/sdk": "workspace:*",
     "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
   }
 }
