@@ -1,14 +1,19 @@
+// ios/JigWebSocketServer.h
+
 #import <Foundation/Foundation.h>
 #import <Network/Network.h>
 
-@class JigHandshakeHandler;
+@class JigDispatcher;
+@class JigAppInfo;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface JigWebSocketServer : NSObject
 
 - (instancetype)initWithPort:(uint16_t)port
-                     handler:(JigHandshakeHandler *)handler;
+                  dispatcher:(JigDispatcher *)dispatcher
+                     appInfo:(JigAppInfo *)appInfo
+                       queue:(dispatch_queue_t)queue;
 - (void)start;
 - (void)stop;
 

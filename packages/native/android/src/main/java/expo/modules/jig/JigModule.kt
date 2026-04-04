@@ -1,5 +1,8 @@
 package expo.modules.jig
 
+import expo.modules.jig.handlers.HandshakeHandler
+import expo.modules.jig.middleware.DomainGuard
+import expo.modules.jig.middleware.HandshakeGate
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -18,11 +21,29 @@ class JigModule : Module() {
 
             val context = appContext.reactContext
                 ?: throw Exception("React context not available")
-            val appInfo = context.packageManager.getApplicationInfo(context.packageName, 0)
-            val appName = context.packageManager.getApplicationLabel(appInfo).toString()
+            val androidAppInfo = context.packageManager
+                .getApplicationInfo(context.packageName, 0)
+            val appName = context.packageManager
+                .getApplicationLabel(androidAppInfo).toString()
 
-            val handler = JigHandshakeHandler(appName, context.packageName, rnVersion, expoVersion)
-            val newServer = JigWebSocketServer(port, handler)
+            val appInfo = JigAppInfo(
+                appName, context.packageName, "android",
+                rnVersion, expoVersion
+            )
+
+            val supportedDomains = emptyList<String>()
+            val middlewares = listOf<JigMiddleware>(
+                HandshakeGate(),
+                DomainGuard(supportedDomains),
+            )
+            val handlers = listOf<JigHandler>(
+                HandshakeHandler(),
+            )
+            val dispatcher = JigDispatcher(
+                middlewares, handlers, supportedDomains
+            )
+
+            val newServer = JigWebSocketServer(port, dispatcher, appInfo)
             newServer.start()
             server = newServer
         }
