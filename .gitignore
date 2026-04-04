@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .gradle/
 .worktrees/
+*.tgz
+screenshot.png

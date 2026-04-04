@@ -1,7 +1,7 @@
 import type { Config } from 'jest';
 
 const config: Config = {
-  displayName: 'cli',
+  displayName: 'sdk',
   testEnvironment: 'node',
   roots: ['<rootDir>'],
   testMatch: ['<rootDir>/__tests__/**/*.test.ts'],
@@ -11,7 +11,6 @@ const config: Config = {
   },
   moduleNameMapper: {
     '^@jig/protocol$': '<rootDir>/../protocol/src',
-    '^@jig/sdk$': '<rootDir>/../sdk/src',
   },
 };
 

@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@jig/sdk':
+        specifier: workspace:*
+        version: link:packages/sdk
     devDependencies:
       '@swc/core':
         specifier: ^1.11.0
@@ -35,16 +39,12 @@ importers:
       '@jig/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@jig/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       commander:
         specifier: ^13.1.0
         version: 13.1.0
-      ws:
-        specifier: ^8.18.0
-        version: 8.20.0
-    devDependencies:
-      '@types/ws':
-        specifier: ^8.5.14
-        version: 8.18.1
 
   packages/native:
     dependencies:
@@ -67,6 +67,19 @@ importers:
       json-schema-to-typescript:
         specifier: ^15.0.4
         version: 15.0.4
+
+  packages/sdk:
+    dependencies:
+      '@jig/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.14
+        version: 8.18.1
 
 packages:
 

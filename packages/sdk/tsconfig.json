@@ -6,7 +6,6 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../protocol" },
-    { "path": "../sdk" }
+    { "path": "../protocol" }
   ]
 }

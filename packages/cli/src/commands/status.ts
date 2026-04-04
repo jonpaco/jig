@@ -1,9 +1,8 @@
-import { connect, type ConnectionOptions } from '../client/connection';
+import { connect, type ConnectOptions } from '@jig/sdk';
 
-export async function status(options?: ConnectionOptions): Promise<string> {
-  const result = await connect(options);
-  const { serverHello, session } = result;
-  const { app, protocol, server } = serverHello;
+export async function status(options?: ConnectOptions): Promise<string> {
+  const session = await connect(options);
+  const { app, protocol, server } = session.serverHello;
 
   const lines = [
     `✓ Connected to ${app.name} (${app.bundleId})`,
@@ -15,5 +14,6 @@ export async function status(options?: ConnectionOptions): Promise<string> {
     `  Session:   ${session.sessionId}`,
   ];
 
+  session.disconnect();
   return lines.join('\n');
 }

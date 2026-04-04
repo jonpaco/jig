@@ -1,9 +1,6 @@
 {
-  "name": "@jig/cli",
+  "name": "@jig/sdk",
   "version": "0.1.0",
-  "bin": {
-    "jig": "dist/index.js"
-  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -12,7 +9,9 @@
   },
   "dependencies": {
     "@jig/protocol": "workspace:*",
-    "@jig/sdk": "workspace:*",
-    "commander": "^13.1.0"
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.14"
   }
 }

@@ -7,6 +7,9 @@
     "clean": "pnpm -r run clean",
     "codegen": "pnpm --filter @jig/protocol run codegen"
   },
+  "dependencies": {
+    "@jig/sdk": "workspace:*"
+  },
   "devDependencies": {
     "@swc/core": "^1.11.0",
     "@swc/jest": "^0.2.38",

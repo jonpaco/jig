@@ -1,9 +1,11 @@
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
 import { connect } from '../src/client/connection';
+import { JigError } from '../src/errors';
 
 function startMockServer(opts?: {
   skipHello?: boolean;
   errorOnHandshake?: boolean;
+  onCommand?: (method: string, params: any, id: number, ws: WsWebSocket) => void;
 }): Promise<{ server: WebSocketServer; port: number }> {
   return new Promise((resolve) => {
     const server = new WebSocketServer({ port: 0 }, () => {
@@ -24,13 +26,14 @@ function startMockServer(opts?: {
               platform: 'ios',
               rn: '0.81.5',
             },
-            commands: [],
+            commands: ['jig.screenshot'],
             domains: [],
           },
         }));
 
         ws.on('message', (data) => {
           const msg = JSON.parse(data.toString());
+
           if (msg.method === 'client.hello') {
             if (opts?.errorOnHandshake) {
               ws.send(JSON.stringify({
@@ -54,6 +57,11 @@ function startMockServer(opts?: {
                 },
               }));
             }
+            return;
+          }
+
+          if (opts?.onCommand) {
+            opts.onCommand(msg.method, msg.params, msg.id, ws);
           }
         });
       });
@@ -77,15 +85,14 @@ describe('connect', () => {
     }
   });
 
-  it('completes handshake and returns server info + session', async () => {
+  it('completes handshake and returns session with server info', async () => {
     ({ server, port } = await startMockServer());
 
-    const result = await connect({ port });
-    expect(result.serverHello.app.name).toBe('TestApp');
-    expect(result.serverHello.app.bundleId).toBe('com.test.app');
-    expect(result.serverHello.protocol.name).toBe('jig');
-    expect(result.session.sessionId).toBe('sess_test1234');
-    expect(result.session.negotiated.protocol).toBe(1);
+    const session = await connect({ port });
+    expect(session.serverHello.app.name).toBe('TestApp');
+    expect(session.serverHello.protocol.name).toBe('jig');
+    expect(session.sessionId).toBe('sess_test1234');
+    session.disconnect();
   });
 
   it('rejects when server never sends hello', async () => {
@@ -105,5 +112,59 @@ describe('connect', () => {
   it('rejects when no server is running', async () => {
     await expect(connect({ port: 19999, timeout: 200 }))
       .rejects.toThrow();
+  });
+
+  it('can send commands after handshake', async () => {
+    ({ server, port } = await startMockServer({
+      onCommand: (method, params, id, ws) => {
+        ws.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          result: { echo: method },
+        }));
+      },
+    }));
+
+    const session = await connect({ port });
+    const result = await session.send<{ echo: string }>('test.echo', {});
+    expect(result.echo).toBe('test.echo');
+    session.disconnect();
+  });
+
+  it('throws JigError on command error response', async () => {
+    ({ server, port } = await startMockServer({
+      onCommand: (_method, _params, id, ws) => {
+        ws.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32603, message: 'Something broke', data: { detail: 'oops' } },
+        }));
+      },
+    }));
+
+    const session = await connect({ port });
+    try {
+      await session.send('test.fail', {});
+      fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(JigError);
+      expect((err as JigError).code).toBe(-32603);
+      expect((err as JigError).message).toBe('Something broke');
+      expect((err as JigError).data).toEqual({ detail: 'oops' });
+    }
+    session.disconnect();
+  });
+
+  it('rejects pending commands on disconnect', async () => {
+    ({ server, port } = await startMockServer({
+      onCommand: () => {
+        // Never respond — simulate hanging command
+      },
+    }));
+
+    const session = await connect({ port });
+    const pending = session.send('test.hang', {});
+    session.disconnect();
+    await expect(pending).rejects.toThrow('Disconnected');
   });
 });
