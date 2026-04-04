@@ -5,6 +5,7 @@ const config: Config = {
   testEnvironment: 'node',
   roots: ['<rootDir>'],
   testMatch: ['<rootDir>/__tests__/**/*.test.ts'],
+  testPathIgnorePatterns: ['<rootDir>/__tests__/integration/'],
   transform: {
     '^.+\\.ts$': '@swc/jest',
   },
