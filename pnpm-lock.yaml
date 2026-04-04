@@ -68,6 +68,19 @@ importers:
         specifier: ^15.0.4
         version: 15.0.4
 
+  packages/sdk:
+    dependencies:
+      '@jig/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      ws:
+        specifier: ^8.18.0
+        version: 8.20.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.14
+        version: 8.18.1
+
 packages:
 
   '@apidevtools/json-schema-ref-parser@11.9.3':
