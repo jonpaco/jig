@@ -123,7 +123,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           sudo apt-get update -qq && sudo apt-get install -y -qq libpulse0
           # Install apktool v3 (Ubuntu package is v2 which can't handle Material Design 3 $ filenames)
-          curl -sL https://raw.githubusercontent.com/ApertureSecurity/apktool/master/scripts/linux/apktool -o /usr/local/bin/apktool
+          curl -sL https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -o /usr/local/bin/apktool
           curl -sL https://github.com/ApertureSecurity/apktool/releases/download/v3.0.1/apktool_3.0.1.jar -o /usr/local/bin/apktool.jar
           chmod +x /usr/local/bin/apktool
 
