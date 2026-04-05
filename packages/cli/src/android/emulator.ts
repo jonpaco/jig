@@ -368,18 +368,22 @@ async function bootEmulator(): Promise<string> {
   const emulatorBin = resolveSDKTool('emulator', true);
   const { spawn } = require('child_process');
 
-  // Notes on emulator flags:
-  // - No -no-window: the headless binary lacks com.apple.security.hypervisor
-  //   entitlement on macOS, disabling HVF and making boot 10x slower.
-  // - No -no-snapshot-save: snapshots make subsequent boots instant (~1s vs 60s+).
-  //   First cold boot is slow but saves a snapshot for future runs.
-  // - gpu=auto: uses host GPU (Metal on macOS) when available, falls back to software.
-  const proc = spawn(emulatorBin, [
+  // Platform-specific emulator flags:
+  // - Linux: use -no-window (no display available in CI). The headless binary
+  //   on Linux has KVM support so this is fine.
+  // - macOS: do NOT use -no-window. The headless binary lacks the
+  //   com.apple.security.hypervisor entitlement, disabling HVF.
+  //   On CI (no display), the window is invisible anyway.
+  const isLinux = process.platform === 'linux';
+  const args = [
     '-avd', JIG_AVD_NAME,
     '-no-audio',
     '-no-boot-anim',
-    '-gpu', 'auto',
-  ], {
+    '-gpu', isLinux ? 'swiftshader_indirect' : 'auto',
+    ...(isLinux ? ['-no-window'] : []),
+  ];
+
+  const proc = spawn(emulatorBin, args, {
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],  // capture stderr for diagnostics
     env: process.env,
