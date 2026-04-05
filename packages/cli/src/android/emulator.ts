@@ -381,14 +381,27 @@ async function bootEmulator(): Promise<string> {
     '-gpu', 'auto',
   ], {
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],  // capture stderr for diagnostics
   });
+
+  // Log emulator stderr for debugging boot issues
+  if (proc.stderr) {
+    proc.stderr.on('data', (data: Buffer) => {
+      const line = data.toString().trim();
+      if (line.includes('hvf') || line.includes('HVF') ||
+          line.includes('error') || line.includes('ERROR') ||
+          line.includes('Failed') || line.includes('WARNING')) {
+        process.stderr.write(`  [emulator] ${line}\n`);
+      }
+    });
+  }
 
   proc.unref();
 
   // Wait for adb to see the emulator (in any state — including offline).
   // CI cold boots can take 60s+ before adb even sees the device.
   const deadline = Date.now() + 120_000;
+  let lastLog = 0;
   while (Date.now() < deadline) {
     try {
       const { stdout } = await execFileAsync('adb', ['devices']);
@@ -396,14 +409,25 @@ async function bootEmulator(): Promise<string> {
       for (const line of lines) {
         const parts = line.trim().split('\t');
         if (parts[0]?.startsWith('emulator-') && parts[1]) {
+          process.stderr.write(`  Emulator detected: ${parts[0]} (${parts[1]})\n`);
           return parts[0];
         }
       }
     } catch {
       // adb not ready yet
     }
+    // Log progress every 15s
+    const elapsed = Date.now() - (deadline - 120_000);
+    if (elapsed - lastLog >= 15_000) {
+      process.stderr.write(`  Waiting for emulator... (${Math.round(elapsed / 1000)}s)\n`);
+      lastLog = elapsed;
+    }
     await sleep(2000);
   }
+
+  // Check if the emulator process is still alive
+  const isAlive = proc.exitCode === null;
+  process.stderr.write(`  Emulator process alive: ${isAlive}\n`);
 
   throw new Error(
     `Emulator started but not detected by adb within 120s.\n` +
