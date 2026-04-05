@@ -4,7 +4,7 @@ const config: Config = {
   displayName: 'device',
   testEnvironment: 'node',
   transform: {
-    '^.+\\.ts$': ['@swc/jest'],
+    '^.+\\.ts$': ['@swc/jest', {}],
   },
   testMatch: ['<rootDir>/__tests__/**/*.test.ts'],
 };
