@@ -21,6 +21,7 @@
 #include "../../core/handlers/jig_handshake.h"
 #include "../../core/middleware/jig_handshake_gate.h"
 #include "../../core/middleware/jig_domain_guard.h"
+#include "JigScreenshotShim.h"
 
 #define LOG_TAG "Jig"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -252,7 +253,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 
     /* Platform ops */
     static jig_platform_ops ops = {
-        .screenshot = NULL,  /* wired in Task 6 */
+        .screenshot = NULL,
         .get_app_info = android_get_app_info,
         .log = android_log,
         .run_on_main_thread = android_run_on_main_thread,
@@ -278,7 +279,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 
     /* Handlers */
     jig_handler *handshake = jig_handshake_create();
-    jig_handler *handlers[] = { handshake };
+    jig_handler *screenshot = jig_screenshot_handler_create();
+    jig_handler *handlers[] = { handshake, screenshot };
 
     /* Middleware */
     jig_middleware gate = jig_handshake_gate_create();
@@ -288,7 +290,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     /* Dispatcher */
     jig_dispatcher_config *dispatcher = jig_dispatcher_create(
         middlewares, 2,
-        handlers, 1,
+        handlers, 2,
         NULL, 0
     );
 

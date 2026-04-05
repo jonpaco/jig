@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 add_subdirectory(../../core ${CMAKE_BINARY_DIR}/core)
 
 # Build the shared library that gets injected into APKs
-add_library(jig SHARED JigStandaloneInit.c)
+add_library(jig SHARED JigStandaloneInit.c JigScreenshotShim.c)
 target_link_libraries(jig PRIVATE jig_core)
 
 # Note: pthread is part of Android's Bionic libc and does not need explicit linking
