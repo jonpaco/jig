@@ -111,10 +111,13 @@ jobs:
       - name: Build monorepo
         run: pnpm build
 
-      - name: Setup NDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: ndk;26.1.10909125
+          packages: |
+            ndk;26.1.10909125
+            system-images;android-34;google_apis;arm64-v8a
+            emulator
 
       - name: Build libjig.so
         run: |
@@ -134,31 +137,14 @@ jobs:
           APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
           echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
 
-      - name: Run Android emulator and test
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 31
-          arch: arm64-v8a
-          target: google_apis
-          ram-size: 4096
-          emulator-boot-timeout: 300
-          disable-animations: true
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio
-          script: |
-            # Disable animations explicitly
-            adb shell settings put global window_animation_scale 0.0
-            adb shell settings put global transition_animation_scale 0.0
-            adb shell settings put global animator_duration_scale 0.0
+      - name: Launch app with Jig
+        run: node packages/cli/dist/index.js launch "$APK_PATH" --skip-verify
 
-            # Inject, install, and launch app with Jig (jig launch handles all three)
-            node packages/cli/dist/index.js launch "$APK_PATH" --skip-verify
+      - name: Wait for Jig server
+        run: node packages/cli/dist/index.js wait --timeout 120000
 
-            # Forward port and wait for Jig
-            adb forward tcp:4042 tcp:4042
-            node packages/cli/dist/index.js wait --timeout 120000
-
-            # Verify connection
-            node packages/cli/dist/index.js status
+      - name: Verify connection
+        run: node packages/cli/dist/index.js status
 
       - name: Upload artifacts
         if: always()
