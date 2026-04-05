@@ -165,6 +165,58 @@ async function spawnEmulator(
   );
 }
 
+/**
+ * On-device readiness script. Pushed once to /data/local/tmp/ and polled
+ * with a single `adb shell` call per iteration. Checks all boot signals
+ * in one round-trip instead of multiple adb calls.
+ *
+ * Exit codes:
+ *   0 = ready (all checks pass)
+ *   1 = not ready yet (outputs which check failed)
+ */
+const READY_SCRIPT = `#!/system/bin/sh
+# jig-ready.sh — device readiness check
+
+# 1. Kernel boot complete
+boot=$(getprop sys.boot_completed)
+if [ "$boot" != "1" ]; then
+  echo "WAIT boot_completed=$boot"
+  exit 1
+fi
+
+# 2. Package manager responding (system services up)
+pm list packages -s >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "WAIT package_manager"
+  exit 1
+fi
+
+# 3. Settings provider responding (UI layer ready)
+settings get global window_animation_scale >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "WAIT settings_provider"
+  exit 1
+fi
+
+echo "READY"
+exit 0
+`;
+
+const READY_SCRIPT_PATH = '/data/local/tmp/jig-ready.sh';
+
+/**
+ * Push the readiness script to the device. Idempotent — overwrites if exists.
+ */
+async function pushReadyScript(serial: string): Promise<void> {
+  // Write script content via stdin to avoid temp files on the host
+  await execFileAsync('adb', [
+    '-s', serial, 'shell',
+    `cat > ${READY_SCRIPT_PATH} << 'JIGEOF'\n${READY_SCRIPT}JIGEOF`,
+  ]);
+  await execFileAsync('adb', ['-s', serial, 'shell', 'chmod', '755', READY_SCRIPT_PATH]);
+  debug(`Pushed readiness script to ${READY_SCRIPT_PATH}`);
+}
+
 async function waitForBoot(serial: string, timeout: number): Promise<void> {
   const deadline = Date.now() + timeout;
   const startTime = Date.now();
@@ -173,45 +225,58 @@ async function waitForBoot(serial: string, timeout: number): Promise<void> {
   debug('Stage 1: adb wait-for-device');
   await execFileAsync('adb', ['-s', serial, 'wait-for-device']);
 
-  // Stage 2: sys.boot_completed
-  debug('Stage 2: waiting for sys.boot_completed');
+  // Stage 2: push readiness script and poll it
+  debug('Stage 2: pushing readiness script');
+  let scriptPushed = false;
+  let lastStatus = '';
+
   while (Date.now() < deadline) {
-    try {
-      const { stdout } = await execFileAsync('adb', [
-        '-s', serial, 'shell', 'getprop', 'sys.boot_completed',
-      ]);
-      if (stdout.trim() === '1') break;
-    } catch {
-      // Device not ready yet
+    // Push script once the shell is responsive
+    if (!scriptPushed) {
+      try {
+        await pushReadyScript(serial);
+        scriptPushed = true;
+      } catch {
+        // Shell not ready yet — retry
+        await sleep(2000);
+        continue;
+      }
     }
-    await sleep(2000);
-  }
 
-  if (Date.now() >= deadline) {
-    throw new Error(
-      `Emulator did not finish booting within ${timeout / 1000}s.\n` +
-      `This usually means the system image doesn't support the host's hardware acceleration.\n` +
-      `Host architecture: ${process.arch}`,
-    );
-  }
-
-  // Stage 3: boot animation stopped
-  debug('Stage 3: waiting for boot animation to stop');
-  const animDeadline = Date.now() + 30_000;
-  while (Date.now() < animDeadline) {
+    // Poll the script — use shell exit code 0/1, capture stdout either way
     try {
+      // Run with `; echo EXIT:$?` so we always get stdout even on non-zero exit
       const { stdout } = await execFileAsync('adb', [
-        '-s', serial, 'shell', 'getprop', 'init.svc.bootanim',
-      ]);
-      if (stdout.trim() === 'stopped') break;
+        '-s', serial, 'shell', `sh ${READY_SCRIPT_PATH}; echo EXIT:$?`,
+      ], { timeout: 10_000 });
+
+      const lines = stdout.trim().split('\n');
+      const statusLine = lines.find(l => !l.startsWith('EXIT:')) || '';
+
+      if (statusLine === 'READY') {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+        info(`Booted in ${elapsed}s`);
+        return;
+      }
+
+      // Log status changes (e.g. "WAIT boot_completed=", "WAIT package_manager")
+      if (statusLine && statusLine !== lastStatus) {
+        debug(`Readiness: ${statusLine}`);
+        lastStatus = statusLine;
+      }
     } catch {
-      // Not ready yet
+      // Shell disconnected or timeout
     }
+
     await sleep(1000);
   }
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-  info(`Booted in ${elapsed}s`);
+  throw new Error(
+    `Emulator did not finish booting within ${timeout / 1000}s.\n` +
+    `Last readiness status: ${lastStatus || 'unknown'}\n` +
+    `This usually means the system image doesn't support the host's hardware acceleration.\n` +
+    `Host architecture: ${process.arch}`,
+  );
 }
 
 async function disableAnimations(serial: string): Promise<void> {
