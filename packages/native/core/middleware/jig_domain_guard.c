@@ -12,6 +12,11 @@ static int domain_guard_validate(void *ctx, const char *method, cJSON *params,
     (void)params;
     (void)session;
 
+    if (!ctx) {
+        *err = jig_error_internal("domain guard context is NULL (allocation failed)");
+        return 1;
+    }
+
     domain_guard_ctx *dg = (domain_guard_ctx *)ctx;
 
     /* Only check methods ending in .enable or .disable */
@@ -30,6 +35,8 @@ static int domain_guard_validate(void *ctx, const char *method, cJSON *params,
     }
 
     size_t domain_len = (size_t)(dot - method);
+    /* 128 bytes is sufficient: domain names in the Jig protocol are short
+       identifiers like "network", "console", "dom" (protocol constraint). */
     char domain[128];
     if (domain_len >= sizeof(domain)) domain_len = sizeof(domain) - 1;
     memcpy(domain, method, domain_len);

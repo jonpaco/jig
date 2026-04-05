@@ -275,6 +275,64 @@ static void test_handle_open_sends_server_hello(void) {
     jig_dispatcher_destroy(cfg);
 }
 
+static void test_dispatch_client_hello_full(void) {
+    clear_sent();
+    jig_handler *hs = jig_handshake_create();
+    jig_handler *handlers[] = { hs };
+    jig_dispatcher_config *cfg = jig_dispatcher_create(
+        NULL, 0, handlers, 1, NULL, 0);
+
+    jig_app_info *app = make_app();
+    jig_session *sess = jig_session_create(1, app, capture_send, NULL);
+
+    const char *msg =
+        "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"client.hello\","
+        "\"params\":{\"protocol\":{\"version\":1},\"client\":\"test/1.0\"}}";
+    jig_dispatcher_dispatch(cfg, msg, sess);
+
+    ASSERT(last_sent != NULL, "client.hello full: response sent");
+
+    cJSON *resp = cJSON_Parse(last_sent);
+    ASSERT(resp != NULL, "client.hello full: valid JSON");
+
+    cJSON *result = cJSON_GetObjectItem(resp, "result");
+    ASSERT(result != NULL, "client.hello full: has result");
+
+    /* Response must contain sessionId, negotiated, enabled, rejected */
+    cJSON *sid = cJSON_GetObjectItem(result, "sessionId");
+    ASSERT(sid != NULL && cJSON_IsString(sid),
+           "client.hello full: has sessionId string");
+
+    cJSON *negotiated = cJSON_GetObjectItem(result, "negotiated");
+    ASSERT(negotiated != NULL && cJSON_IsObject(negotiated),
+           "client.hello full: has negotiated object");
+    cJSON *neg_proto = cJSON_GetObjectItem(negotiated, "protocol");
+    ASSERT(neg_proto != NULL && neg_proto->valueint == 1,
+           "client.hello full: negotiated protocol is 1");
+
+    cJSON *enabled = cJSON_GetObjectItem(result, "enabled");
+    ASSERT(enabled != NULL && cJSON_IsArray(enabled),
+           "client.hello full: has enabled array");
+
+    cJSON *rejected = cJSON_GetObjectItem(result, "rejected");
+    ASSERT(rejected != NULL && cJSON_IsArray(rejected),
+           "client.hello full: has rejected array");
+
+    /* Session state must be updated by dispatcher post-processing */
+    ASSERT(sess->session_id != NULL,
+           "client.hello full: session_id set after dispatch");
+    ASSERT(strcmp(sess->session_id, sid->valuestring) == 0,
+           "client.hello full: session_id matches response");
+    ASSERT(sess->negotiated_version == 1,
+           "client.hello full: negotiated_version is 1");
+
+    cJSON_Delete(resp);
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_handshake_destroy(hs);
+    jig_dispatcher_destroy(cfg);
+}
+
 int main(void) {
     test_dispatch_valid_command();
     test_dispatch_unknown_method();
@@ -283,6 +341,7 @@ int main(void) {
     test_dispatch_middleware_rejection();
     test_dispatch_notification_no_response_on_error();
     test_handle_open_sends_server_hello();
+    test_dispatch_client_hello_full();
 
     clear_sent();
 

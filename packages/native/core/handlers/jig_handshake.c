@@ -1,10 +1,9 @@
 #include "jig_handshake.h"
+#include "../jig_protocol.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-
-#define JIG_PROTOCOL_VERSION 1
 
 static cJSON *handshake_handle(jig_handler *self, cJSON *params,
                                 jig_session *session, jig_error **err) {
@@ -39,9 +38,10 @@ static cJSON *handshake_handle(jig_handler *self, cJSON *params,
         return NULL;
     }
 
-    /* Generate session ID: sess_ + 8 hex chars */
+    /* Generate session ID: sess_ + 8 hex chars.
+       The LCG below is intentionally non-cryptographic — session IDs are
+       used for correlation/logging, not for security or authentication. */
     unsigned char bytes[4];
-    /* Use a simple random source */
     unsigned int seed = (unsigned int)time(NULL) ^ (unsigned int)(size_t)session;
     for (int i = 0; i < 4; i++) {
         seed = seed * 1103515245 + 12345;

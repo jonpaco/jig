@@ -1,10 +1,8 @@
 #include "jig_dispatcher.h"
+#include "jig_protocol.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-#define JIG_PROTOCOL_VERSION 1
-#define JIG_SERVER_VERSION "0.1.0"
 
 /* --- Internal helpers --- */
 
