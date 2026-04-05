@@ -6,6 +6,7 @@ import { promisify } from 'util';
 import path from 'path';
 import { injectApk, findMainActivity } from './inject';
 import { resolveLibjigDir } from './resolve';
+import { ensureDevice } from './emulator';
 import fs from 'fs';
 
 const execFileAsync = promisify(execFile);
@@ -23,6 +24,12 @@ export interface AndroidLaunchOptions {
 export async function launchAndroid(options: AndroidLaunchOptions): Promise<string> {
   const { apkPath, libjig, port = 4042 } = options;
 
+  // Ensure a device/emulator is available
+  const device = await ensureDevice();
+  if (!device.alreadyRunning) {
+    process.stderr.write('No device connected. Started Jig emulator.\n');
+  }
+
   // Resolve libjig.so directory
   const libjigDir = resolveLibjigDir(libjig);
 
@@ -33,7 +40,7 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
   });
 
   // Install via adb
-  await execFileAsync('adb', ['install', '-r', '-t', patchedApk]);
+  await execFileAsync('adb', ['-s', device.serial, 'install', '-r', '-t', patchedApk]);
 
   // Parse the original APK's manifest to find the main activity for launch.
   // We re-read from the patched APK's decoded manifest isn't available after
@@ -42,13 +49,13 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
 
   // Forward the Jig port if needed
   await execFileAsync('adb', [
-    'forward', `tcp:${port}`, `tcp:${port}`,
+    '-s', device.serial, 'forward', `tcp:${port}`, `tcp:${port}`,
   ]);
 
   // Launch the activity
   const component = `${packageName}/${activityName}`;
   await execFileAsync('adb', [
-    'shell', 'am', 'start', '-n', component,
+    '-s', device.serial, 'shell', 'am', 'start', '-n', component,
   ]);
 
   // Clean up patched APK

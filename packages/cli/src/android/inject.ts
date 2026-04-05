@@ -75,8 +75,17 @@ export async function injectApk(options: InjectOptions): Promise<string> {
     const smaliPath = resolveSmaliPath(decodedDir, mainActivity);
     patchSmali(smaliPath);
 
+    // 4b. Copy Jig helper smali classes into the APK
+    copyJigSmali(decodedDir, libjigDir);
+
     // 5. Rebuild APK
-    await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
+    // Try with --use-aapt2 first (needed for v2 with Material Design 3 $ filenames),
+    // fall back to plain build for v3+ which uses aapt2 by default.
+    try {
+      await execFileAsync('apktool', ['b', '--use-aapt2', '-o', rebuiltApk, decodedDir]);
+    } catch {
+      await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
+    }
 
     // 6. Zipalign
     await execFileAsync('zipalign', ['-f', '4', rebuiltApk, alignedApk]);
@@ -97,6 +106,40 @@ export async function injectApk(options: InjectOptions): Promise<string> {
   } finally {
     // Clean up temp dir
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Copy Jig helper smali classes (JigMainThreadRunner, JigActivityCallbacks)
+ * into the decoded APK's smali directory. These are needed by the native
+ * JNI code in libjig.so.
+ *
+ * The smali files are shipped alongside libjig.so in the native package
+ * at ../../native/android/smali/jig/*.smali (relative to the libjigDir's
+ * grandparent, which is packages/native/).
+ */
+function copyJigSmali(decodedDir: string, libjigDir: string): void {
+  // libjigDir is packages/native/build/android — smali is at packages/native/android/smali
+  const nativeRoot = path.resolve(libjigDir, '..', '..');
+  const smaliSrcDir = path.join(nativeRoot, 'android', 'smali', 'jig');
+
+  if (!fs.existsSync(smaliSrcDir)) {
+    console.warn('Warning: Jig smali helpers not found, skipping Java class injection');
+    return;
+  }
+
+  // Find the first smali directory in the decoded APK (usually just "smali")
+  const smaliDirs = fs.readdirSync(decodedDir).filter((name) =>
+    name.startsWith('smali'),
+  );
+  const targetSmaliDir = smaliDirs[0] || 'smali';
+
+  const dstDir = path.join(decodedDir, targetSmaliDir, 'jig');
+  fs.mkdirSync(dstDir, { recursive: true });
+
+  const smaliFiles = fs.readdirSync(smaliSrcDir).filter((f) => f.endsWith('.smali'));
+  for (const file of smaliFiles) {
+    fs.copyFileSync(path.join(smaliSrcDir, file), path.join(dstDir, file));
   }
 }
 

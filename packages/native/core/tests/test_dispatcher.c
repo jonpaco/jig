@@ -1,6 +1,7 @@
 #include "test_util.h"
 #include "../jig_dispatcher.h"
 #include "../handlers/jig_handshake.h"
+#include "../jig_platform.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,6 +29,57 @@ static jig_handler echo_handler = {
     .method = "test.echo",
     .thread_target = JIG_THREAD_WEBSOCKET,
     .handle = echo_handle,
+    .user_data = NULL,
+};
+
+/* --- main thread mock helpers --- */
+typedef struct {
+    void (*callback)(void *ctx);
+    void *ctx;
+} captured_main_thread_call;
+
+static captured_main_thread_call g_captured = {NULL, NULL};
+
+static void mock_run_on_main_thread(void (*callback)(void *ctx), void *ctx) {
+    g_captured.callback = callback;
+    g_captured.ctx = ctx;
+}
+
+static void flush_main_thread(void) {
+    if (g_captured.callback) {
+        g_captured.callback(g_captured.ctx);
+        g_captured.callback = NULL;
+        g_captured.ctx = NULL;
+    }
+}
+
+/* --- main thread handler stubs --- */
+static cJSON *main_thread_handle(jig_handler *self, cJSON *params,
+                                  jig_session *session, jig_error **err) {
+    (void)self; (void)session; (void)err;
+    cJSON *result = cJSON_CreateObject();
+    cJSON_AddStringToObject(result, "dispatched", "on_main");
+    return result;
+}
+
+static jig_handler main_thread_handler = {
+    .method = "test.mainthread",
+    .thread_target = JIG_THREAD_MAIN,
+    .handle = main_thread_handle,
+    .user_data = NULL,
+};
+
+static cJSON *main_thread_error_handle(jig_handler *self, cJSON *params,
+                                        jig_session *session, jig_error **err) {
+    (void)self; (void)params; (void)session;
+    *err = jig_error_internal("main thread error");
+    return NULL;
+}
+
+static jig_handler main_thread_error_handler = {
+    .method = "test.mainthread.err",
+    .thread_target = JIG_THREAD_MAIN,
+    .handle = main_thread_error_handle,
     .user_data = NULL,
 };
 
@@ -333,6 +385,138 @@ static void test_dispatch_client_hello_full(void) {
     jig_dispatcher_destroy(cfg);
 }
 
+static void test_dispatch_main_thread_handler(void) {
+    clear_sent();
+    g_captured.callback = NULL;
+    g_captured.ctx = NULL;
+
+    static jig_platform_ops ops = {
+        .screenshot = NULL,
+        .get_app_info = NULL,
+        .log = NULL,
+        .run_on_main_thread = mock_run_on_main_thread,
+    };
+    jig_platform_set_ops(&ops);
+
+    jig_handler *handlers[] = { &main_thread_handler };
+    jig_dispatcher_config *cfg = jig_dispatcher_create(
+        NULL, 0, handlers, 1, NULL, 0);
+
+    jig_app_info *app = make_app();
+    jig_session *sess = jig_session_create(1, app, capture_send, NULL);
+    sess->session_id = strdup("sess_test1234");
+
+    const char *msg = "{\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"test.mainthread\","
+                      "\"params\":{\"key\":\"value\"}}";
+    jig_dispatcher_dispatch(cfg, msg, sess);
+
+    ASSERT(last_sent == NULL,
+           "main_thread dispatch: no immediate response");
+    ASSERT(g_captured.callback != NULL,
+           "main_thread dispatch: callback was captured");
+
+    flush_main_thread();
+
+    ASSERT(last_sent != NULL,
+           "main_thread dispatch: response sent after main thread flush");
+
+    cJSON *resp = cJSON_Parse(last_sent);
+    ASSERT(resp != NULL, "main_thread dispatch: valid JSON response");
+    cJSON *id = cJSON_GetObjectItem(resp, "id");
+    ASSERT(id != NULL && id->valueint == 99,
+           "main_thread dispatch: id matches");
+    cJSON *result = cJSON_GetObjectItem(resp, "result");
+    cJSON *dispatched = cJSON_GetObjectItem(result, "dispatched");
+    ASSERT(dispatched != NULL && strcmp(dispatched->valuestring, "on_main") == 0,
+           "main_thread dispatch: handler result correct");
+    cJSON_Delete(resp);
+
+    jig_platform_set_ops(NULL);
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_dispatcher_destroy(cfg);
+}
+
+static void test_dispatch_main_thread_error(void) {
+    clear_sent();
+    g_captured.callback = NULL;
+    g_captured.ctx = NULL;
+
+    static jig_platform_ops ops = {
+        .screenshot = NULL,
+        .get_app_info = NULL,
+        .log = NULL,
+        .run_on_main_thread = mock_run_on_main_thread,
+    };
+    jig_platform_set_ops(&ops);
+
+    jig_handler *handlers[] = { &main_thread_error_handler };
+    jig_dispatcher_config *cfg = jig_dispatcher_create(
+        NULL, 0, handlers, 1, NULL, 0);
+
+    jig_app_info *app = make_app();
+    jig_session *sess = jig_session_create(1, app, capture_send, NULL);
+    sess->session_id = strdup("sess_test1234");
+
+    const char *msg = "{\"jsonrpc\":\"2.0\",\"id\":100,\"method\":\"test.mainthread.err\"}";
+    jig_dispatcher_dispatch(cfg, msg, sess);
+
+    ASSERT(last_sent == NULL, "main_thread error: no immediate response");
+    flush_main_thread();
+
+    ASSERT(last_sent != NULL, "main_thread error: response sent after flush");
+    cJSON *resp = cJSON_Parse(last_sent);
+    cJSON *err = cJSON_GetObjectItem(resp, "error");
+    ASSERT(err != NULL, "main_thread error: has error field");
+    cJSON *code = cJSON_GetObjectItem(err, "code");
+    ASSERT(code != NULL && code->valueint == JIG_ERROR_INTERNAL_ERROR,
+           "main_thread error: correct error code");
+    cJSON_Delete(resp);
+
+    jig_platform_set_ops(NULL);
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_dispatcher_destroy(cfg);
+}
+
+static void test_dispatch_main_thread_no_platform_op(void) {
+    clear_sent();
+
+    static jig_platform_ops ops = {
+        .screenshot = NULL,
+        .get_app_info = NULL,
+        .log = NULL,
+        .run_on_main_thread = NULL,
+    };
+    jig_platform_set_ops(&ops);
+
+    jig_handler *handlers[] = { &main_thread_handler };
+    jig_dispatcher_config *cfg = jig_dispatcher_create(
+        NULL, 0, handlers, 1, NULL, 0);
+
+    jig_app_info *app = make_app();
+    jig_session *sess = jig_session_create(1, app, capture_send, NULL);
+    sess->session_id = strdup("sess_test1234");
+
+    const char *msg = "{\"jsonrpc\":\"2.0\",\"id\":101,\"method\":\"test.mainthread\"}";
+    jig_dispatcher_dispatch(cfg, msg, sess);
+
+    ASSERT(last_sent != NULL,
+           "no platform op: response sent synchronously");
+
+    cJSON *resp = cJSON_Parse(last_sent);
+    cJSON *result = cJSON_GetObjectItem(resp, "result");
+    cJSON *dispatched = cJSON_GetObjectItem(result, "dispatched");
+    ASSERT(dispatched != NULL && strcmp(dispatched->valuestring, "on_main") == 0,
+           "no platform op: handler result correct");
+    cJSON_Delete(resp);
+
+    jig_platform_set_ops(NULL);
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_dispatcher_destroy(cfg);
+}
+
 int main(void) {
     test_dispatch_valid_command();
     test_dispatch_unknown_method();
@@ -342,6 +526,9 @@ int main(void) {
     test_dispatch_notification_no_response_on_error();
     test_handle_open_sends_server_hello();
     test_dispatch_client_hello_full();
+    test_dispatch_main_thread_handler();
+    test_dispatch_main_thread_error();
+    test_dispatch_main_thread_no_platform_op();
 
     clear_sent();
 

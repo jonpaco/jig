@@ -16,10 +16,24 @@ typedef struct jig_dispatcher_config {
     int command_count;
 } jig_dispatcher_config;
 
+typedef struct {
+    jig_handler *handler;
+    cJSON *params;        /* ownership transferred from dispatcher */
+    jig_session *session;
+    cJSON *id;            /* cloned from parsed message */
+} jig_async_dispatch_ctx;
+
+void jig_dispatcher_run_on_main(void *raw_ctx);
+
 /*
  * Create a dispatcher config. Builds the handler lookup table and populates
  * command_names from the handler methods (excluding "client.hello").
  * Caller owns the returned config (free with jig_dispatcher_destroy).
+ *
+ * IMPORTANT: The dispatcher stores the handlers and middlewares pointers
+ * directly — it does NOT copy the arrays. The caller must ensure these
+ * arrays outlive the dispatcher (use static or heap allocation, not
+ * stack-local arrays in a function that returns).
  */
 jig_dispatcher_config *jig_dispatcher_create(
     jig_middleware *middlewares, int middleware_count,
