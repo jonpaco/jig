@@ -36,6 +36,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@jig/device':
+        specifier: workspace:*
+        version: link:../device
       '@jig/protocol':
         specifier: workspace:*
         version: link:../protocol
