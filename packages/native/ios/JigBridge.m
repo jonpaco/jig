@@ -1,10 +1,8 @@
-// ios/JigStandaloneInit.m
+// ios/JigBridge.m
 //
-// Entry point for standalone Jig.framework injection.
-// Loaded via DYLD_INSERT_LIBRARIES — runs before main().
+// Obj-C bridge — wraps C core server lifecycle for Swift (JigModule).
 
-#import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
+#import "JigBridge.h"
 
 #include "../core/jig_server.h"
 #include "../core/jig_dispatcher.h"
@@ -17,7 +15,7 @@
 // Forward declare the screenshot handler create function (defined in JigScreenshotShim.m)
 extern jig_handler *jig_screenshot_handler_create(void);
 
-static jig_server *_jigServer = NULL;
+static jig_server *_server = NULL;
 
 // Platform ops: logging via NSLog
 static void ios_log(const char *fmt, ...) {
@@ -28,19 +26,18 @@ static void ios_log(const char *fmt, ...) {
     va_end(args);
 }
 
-__attribute__((constructor))
-static void JigStandaloneInit(void) {
-    NSBundle *mainBundle = [NSBundle mainBundle];
-    NSDictionary *info = mainBundle.infoDictionary;
+@implementation JigBridge
 
-    NSString *appName = info[@"CFBundleDisplayName"]
-                     ?: info[@"CFBundleName"]
-                     ?: @"Unknown";
-    NSString *bundleId = mainBundle.bundleIdentifier ?: @"unknown";
++ (void)startServerWithName:(NSString *)name
+                   bundleId:(NSString *)bundleId
+                  rnVersion:(NSString *)rnVersion
+                expoVersion:(NSString *)expoVersion
+                       port:(int)port {
+    if (_server != NULL) return;
 
     // 1. Set platform ops
     jig_platform_ops ops = {
-        .screenshot = NULL,  // Screenshot handled by jig_handler, not platform op
+        .screenshot = NULL,
         .get_app_info = NULL,
         .log = ios_log,
     };
@@ -48,11 +45,11 @@ static void JigStandaloneInit(void) {
 
     // 2. Create app info
     jig_app_info *app_info = jig_app_info_create(
-        [appName UTF8String],
+        [name UTF8String],
         [bundleId UTF8String],
         "ios",
-        "unknown",
-        NULL
+        [rnVersion UTF8String],
+        expoVersion ? [expoVersion UTF8String] : NULL
     );
 
     // 3. Create handlers and middleware
@@ -73,10 +70,23 @@ static void JigStandaloneInit(void) {
     );
 
     // 5. Create and start server on background thread
-    _jigServer = jig_server_create(4042, dispatcher, app_info);
+    _server = jig_server_create(port, dispatcher, app_info);
     dispatch_async(dispatch_queue_create("jig.server", NULL), ^{
-        jig_server_start(_jigServer);
+        jig_server_start(_server);
     });
 
-    NSLog(@"[Jig] Standalone server started on port 4042 for %@ (%@)", appName, bundleId);
+    NSLog(@"[Jig] Server started on port %d for %@ (%@)", port, name, bundleId);
 }
+
++ (void)stopServer {
+    if (_server == NULL) return;
+    jig_server_stop(_server);
+    jig_server_destroy(_server);
+    _server = NULL;
+}
+
++ (BOOL)isRunning {
+    return _server != NULL;
+}
+
+@end
