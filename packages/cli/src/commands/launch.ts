@@ -96,10 +96,59 @@ export async function launch(options: LaunchOptions): Promise<string> {
 
   // Android path: .apk files
   if (appPath.endsWith('.apk')) {
+    if (!options.noDevice && options.deviceProfile) {
+      const { getConnectedDevices } = await import('@jig/device/dist/android/emulator');
+      const devices = await getConnectedDevices();
+      if (devices.length === 0) {
+        const { bootDevice } = await import('@jig/device');
+        process.stderr.write(`No device connected. Booting profile "${options.deviceProfile}"...\n`);
+        await bootDevice({ profile: options.deviceProfile });
+      }
+    }
     return launchAndroid({ apkPath: appPath, libjig, port });
   }
 
   // iOS path: .app bundles
+  // Auto-boot simulator if needed
+  if (!options.noDevice) {
+    const { getBootedSimulators } = await import('@jig/device/dist/ios/simulator');
+    const booted = await getBootedSimulators();
+    if (booted.length === 0) {
+      const { bootDevice, loadManifest, generateManifest } = await import('@jig/device');
+      const fsModule = await import('fs');
+
+      let profileName = options.deviceProfile;
+
+      if (!profileName) {
+        const manifest = loadManifest();
+        if (manifest) {
+          for (const [name, profile] of Object.entries(manifest.devices)) {
+            if (profile.platform === 'ios' && profile.headless) {
+              profileName = name;
+              break;
+            }
+          }
+        }
+      }
+
+      if (profileName) {
+        process.stderr.write(`No booted simulator. Booting profile "${profileName}"...\n`);
+        await bootDevice({ profile: profileName });
+      } else {
+        process.stderr.write('No booted simulator. Booting with defaults...\n');
+        await bootDevice({
+          config: { platform: 'ios', runtime: 'latest', device: 'iPhone 16', headless: true },
+        });
+
+        const manifestFilePath = 'jig.devices.yml';
+        if (!fsModule.existsSync(manifestFilePath)) {
+          fsModule.writeFileSync(manifestFilePath, generateManifest('ios'));
+          process.stderr.write('Created jig.devices.yml with default profile. Edit to customize.\n');
+        }
+      }
+    }
+  }
+
   // Resolve and verify framework
   const frameworkBinary = await resolveFramework(framework);
   const frameworkDir = path.dirname(frameworkBinary);
