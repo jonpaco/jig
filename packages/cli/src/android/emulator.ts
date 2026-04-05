@@ -382,7 +382,7 @@ async function bootEmulator(): Promise<string> {
   ], {
     detached: true,
     stdio: ['ignore', 'ignore', 'pipe'],  // capture stderr for diagnostics
-    env: { ...process.env, QEMU_AUDIO_DRV: 'none' },
+    env: process.env,
   });
 
   // Log emulator stderr for debugging boot issues
