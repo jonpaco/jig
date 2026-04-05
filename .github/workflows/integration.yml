@@ -84,3 +84,95 @@ jobs:
           name: integration-ios
           path: /tmp/screenshot.png
           retention-days: 7
+
+  android:
+    name: Android Injection Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo
+        run: pnpm build
+
+      - name: Setup NDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;26.1.10909125
+
+      - name: Build libjig.so
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
+          bash scripts/build-so.sh
+
+      - name: Download test app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: habit-tracker-android
+          path: /tmp/test-app
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ vars.HABIT_TRACKER_BUILD_RUN_ID }}
+
+      - name: Extract test APK
+        run: |
+          cd /tmp/test-app
+          APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
+          echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
+
+      - name: Inject Jig into APK
+        run: node packages/cli/dist/index.js inject "$APK_PATH" --output /tmp/test-app/HabitTracker-jig.apk
+
+      - name: Run Android emulator and test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          ram-size: 4096
+          emulator-boot-timeout: 300
+          disable-animations: true
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio
+          script: |
+            # Disable animations explicitly
+            adb shell settings put global window_animation_scale 0.0
+            adb shell settings put global transition_animation_scale 0.0
+            adb shell settings put global animator_duration_scale 0.0
+
+            # Install injected APK
+            adb install /tmp/test-app/HabitTracker-jig.apk
+
+            # Launch the app
+            PACKAGE=$(aapt dump badging /tmp/test-app/HabitTracker-jig.apk | grep "package: name=" | sed "s/.*name='\([^']*\)'.*/\1/")
+            ACTIVITY=$(aapt dump badging /tmp/test-app/HabitTracker-jig.apk | grep "launchable-activity" | sed "s/.*name='\([^']*\)'.*/\1/")
+            adb shell am start -n "$PACKAGE/$ACTIVITY"
+
+            # Forward port and wait for Jig
+            adb forward tcp:4042 tcp:4042
+            node packages/cli/dist/index.js wait --timeout 120000
+
+            # Verify connection
+            node packages/cli/dist/index.js status
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-android
+          path: /tmp/test-app/HabitTracker-jig.apk
+          retention-days: 7
