@@ -57,6 +57,7 @@ export interface CheckResult {
 export interface CheckEntry {
   name: string;
   passed: boolean;
+  severity: 'error' | 'warning';  // error = blocks boot, warning = needed later (e.g. injection tools)
   detail?: string;    // version or path when passed
   message?: string;   // error message when failed
   fix?: string;       // install command or link

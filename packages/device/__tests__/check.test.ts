@@ -2,7 +2,7 @@ import { buildAndroidChecks, formatCheckResult } from '../src/check';
 import { CheckResult } from '../src/types';
 
 describe('buildAndroidChecks', () => {
-  it('includes ANDROID_HOME check', () => {
+  it('includes emulator checks', () => {
     const checks = buildAndroidChecks({
       platform: 'android',
       api: 34,
@@ -17,6 +17,24 @@ describe('buildAndroidChecks', () => {
     expect(names).toContain('emulator');
     expect(names).toContain('adb');
     expect(names).toContain('system image');
+  });
+
+  it('includes injection tool checks', () => {
+    const checks = buildAndroidChecks({
+      platform: 'android',
+      api: 34,
+      arch: 'x86_64',
+      image: 'google_apis',
+      screen: '1080x2400',
+      ram: 4096,
+      headless: true,
+    });
+    const names = checks.map((c) => c.name);
+    expect(names).toContain('apktool');
+    expect(names).toContain('zipalign');
+    expect(names).toContain('apksigner');
+    expect(names).toContain('aapt2');
+    expect(names).toContain('keytool');
   });
 
   it('includes KVM check on linux', () => {
@@ -53,7 +71,7 @@ describe('formatCheckResult', () => {
     const result: CheckResult = {
       ok: true,
       checks: [
-        { name: 'ANDROID_HOME', passed: true, detail: '/fake/sdk' },
+        { name: 'ANDROID_HOME', passed: true, severity: 'error', detail: '/fake/sdk' },
       ],
     };
     const output = formatCheckResult(result);
@@ -62,16 +80,42 @@ describe('formatCheckResult', () => {
     expect(output).toContain('All checks passed');
   });
 
-  it('formats failing result with fix', () => {
+  it('formats error as ✗', () => {
     const result: CheckResult = {
       ok: false,
       checks: [
-        { name: 'adb', passed: false, message: 'adb not found', fix: 'sdkmanager "platform-tools"' },
+        { name: 'adb', passed: false, severity: 'error', message: 'adb not found', fix: 'sdkmanager "platform-tools"' },
       ],
     };
     const output = formatCheckResult(result);
+    expect(output).toContain('✗ adb');
     expect(output).toContain('adb not found');
-    expect(output).toContain('sdkmanager "platform-tools"');
-    expect(output).toContain('1 issue');
+    expect(output).toContain('1 error');
+  });
+
+  it('formats warning as ⚠', () => {
+    const result: CheckResult = {
+      ok: true,
+      checks: [
+        { name: 'emulator', passed: true, severity: 'error', detail: 'installed' },
+        { name: 'apktool', passed: false, severity: 'warning', message: 'apktool not found', fix: 'brew install apktool' },
+      ],
+    };
+    const output = formatCheckResult(result);
+    expect(output).toContain('⚠ apktool');
+    expect(output).toContain('1 warning');
+    expect(output).toContain('All checks passed');
+  });
+
+  it('warnings do not affect ok status', () => {
+    const result: CheckResult = {
+      ok: true,
+      checks: [
+        { name: 'emulator', passed: true, severity: 'error', detail: 'ok' },
+        { name: 'apktool', passed: false, severity: 'warning', message: 'missing' },
+      ],
+    };
+    const output = formatCheckResult(result);
+    expect(output).toContain('All checks passed');
   });
 });
