@@ -105,8 +105,14 @@ export async function bootDevice(options: BootOptions = {}): Promise<DeviceHandl
     return handle;
   }
 
-  // iOS will be added in Plan 2
-  throw new Error('iOS simulator support not yet implemented (see Plan 2)');
+  if (resolvedProfile.platform === 'ios') {
+    const { bootIOS } = await import('./ios/simulator');
+    const handle = await bootIOS(name, resolvedProfile, timeout);
+    registerDevice(handle);
+    return handle;
+  }
+
+  throw new Error(`Unknown platform: ${(resolvedProfile as any).platform}`);
 }
 
 /**
@@ -121,10 +127,18 @@ export async function killDevice(nameOrHandle: string | DeviceHandle): Promise<v
     if (active.platform === 'android') {
       await killAndroid(active.id);
     }
+    if (active.platform === 'ios') {
+      const { killIOS } = await import('./ios/simulator');
+      await killIOS(active.id);
+    }
     unregisterDevice(active.id);
   } else {
     if (nameOrHandle.platform === 'android') {
       await killAndroid(nameOrHandle.id);
+    }
+    if (nameOrHandle.platform === 'ios') {
+      const { killIOS } = await import('./ios/simulator');
+      await killIOS(nameOrHandle.id);
     }
     unregisterDevice(nameOrHandle.id);
   }
@@ -138,6 +152,10 @@ export async function killAll(): Promise<void> {
   for (const device of devices) {
     if (device.platform === 'android') {
       await killAndroid(device.id);
+    }
+    if (device.platform === 'ios') {
+      const { killIOS } = await import('./ios/simulator');
+      await killIOS(device.id);
     }
     unregisterDevice(device.id);
   }
