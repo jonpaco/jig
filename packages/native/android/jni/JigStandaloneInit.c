@@ -5,11 +5,6 @@
  * (injected through smali patching), JNI_OnLoad fires automatically.
  * It sets up the C core platform ops and starts the WebSocket server on a
  * background thread.
- *
- * Screenshot handler intentionally deferred from Plan 3 scope.
- * JNI screenshot requires an Activity context that is not available
- * at JNI_OnLoad time. Will be implemented when Activity lifecycle
- * hooks are added (see deferred work in migration spec).
  */
 
 #include <jni.h>
@@ -34,6 +29,88 @@
 static jig_server *g_server = NULL;
 static JavaVM *g_jvm = NULL;
 
+/* --- Activity lifecycle state --- */
+static jobject g_current_activity = NULL;
+static pthread_mutex_t g_activity_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+jobject jig_get_current_activity(JNIEnv *env) {
+    pthread_mutex_lock(&g_activity_mutex);
+    jobject activity = g_current_activity ? (*env)->NewLocalRef(env, g_current_activity) : NULL;
+    pthread_mutex_unlock(&g_activity_mutex);
+    return activity;
+}
+
+JavaVM *jig_get_jvm(void) {
+    return g_jvm;
+}
+
+/* --- JNI cached classes/methods --- */
+static jclass g_runner_class = NULL;
+static jmethodID g_post_method = NULL;
+
+/* --- Main thread dispatch --- */
+
+JNIEXPORT void JNICALL
+Java_jig_JigMainThreadRunner_executePendingCallback(JNIEnv *env, jclass cls,
+                                                     jlong fnPtr, jlong ctxPtr) {
+    (void)env; (void)cls;
+    void (*callback)(void *) = (void (*)(void *))(uintptr_t)fnPtr;
+    void *ctx = (void *)(uintptr_t)ctxPtr;
+    if (callback) {
+        callback(ctx);
+    }
+}
+
+static void android_run_on_main_thread(void (*callback)(void *ctx), void *ctx) {
+    JNIEnv *env;
+    int attached = 0;
+
+    jint rc = (*g_jvm)->GetEnv(g_jvm, (void **)&env, JNI_VERSION_1_6);
+    if (rc == JNI_EDETACHED) {
+        (*g_jvm)->AttachCurrentThread(g_jvm, &env, NULL);
+        attached = 1;
+    }
+
+    if (g_runner_class && g_post_method) {
+        (*env)->CallStaticVoidMethod(env, g_runner_class, g_post_method,
+                                      (jlong)(uintptr_t)callback,
+                                      (jlong)(uintptr_t)ctx);
+    } else {
+        LOGE("JigMainThreadRunner not available, executing synchronously");
+        callback(ctx);
+    }
+
+    if (attached) {
+        (*g_jvm)->DetachCurrentThread(g_jvm);
+    }
+}
+
+/* --- Activity lifecycle callbacks (called from Java proxy) --- */
+
+JNIEXPORT void JNICALL
+Java_jig_JigActivityCallbacks_nativeOnActivityResumed(JNIEnv *env, jclass cls, jobject activity) {
+    (void)cls;
+    pthread_mutex_lock(&g_activity_mutex);
+    if (g_current_activity) {
+        (*env)->DeleteGlobalRef(env, g_current_activity);
+    }
+    g_current_activity = (*env)->NewGlobalRef(env, activity);
+    pthread_mutex_unlock(&g_activity_mutex);
+    LOGI("Activity resumed — captured reference");
+}
+
+JNIEXPORT void JNICALL
+Java_jig_JigActivityCallbacks_nativeOnActivityPaused(JNIEnv *env, jclass cls, jobject activity) {
+    (void)cls;
+    pthread_mutex_lock(&g_activity_mutex);
+    if (g_current_activity && (*env)->IsSameObject(env, g_current_activity, activity)) {
+        (*env)->DeleteGlobalRef(env, g_current_activity);
+        g_current_activity = NULL;
+        LOGI("Activity paused — cleared reference");
+    }
+    pthread_mutex_unlock(&g_activity_mutex);
+}
+
 /* --- Platform ops -------------------------------------------------------- */
 
 static void android_log(const char *fmt, ...) {
@@ -44,11 +121,6 @@ static void android_log(const char *fmt, ...) {
 }
 
 static int android_get_app_info(jig_app_info *info) {
-    /*
-     * For standalone injection we read the package name from
-     * /proc/self/cmdline — the kernel writes the process name there,
-     * which for Android apps is the package name.
-     */
     info->name = strdup("Unknown");
     info->bundle_id = strdup("unknown");
     info->platform = strdup("android");
@@ -83,21 +155,111 @@ static void *server_thread(void *arg) {
     return NULL;
 }
 
+/* --- JNI registration ---------------------------------------------------- */
+
+static JNINativeMethod sRunnerMethods[] = {
+    {"executePendingCallback", "(JJ)V",
+     (void *)Java_jig_JigMainThreadRunner_executePendingCallback},
+};
+
+static JNINativeMethod sActivityMethods[] = {
+    {"nativeOnActivityResumed", "(Landroid/app/Activity;)V",
+     (void *)Java_jig_JigActivityCallbacks_nativeOnActivityResumed},
+    {"nativeOnActivityPaused", "(Landroid/app/Activity;)V",
+     (void *)Java_jig_JigActivityCallbacks_nativeOnActivityPaused},
+};
+
+static int register_natives(JNIEnv *env) {
+    /* JigMainThreadRunner */
+    jclass runner = (*env)->FindClass(env, "jig/JigMainThreadRunner");
+    if (!runner) {
+        LOGE("Cannot find jig/JigMainThreadRunner class");
+        return -1;
+    }
+    g_runner_class = (*env)->NewGlobalRef(env, runner);
+    g_post_method = (*env)->GetStaticMethodID(env, g_runner_class,
+                                               "postToMainThread", "(JJ)V");
+    if (!g_post_method) {
+        LOGE("Cannot find postToMainThread method");
+        return -1;
+    }
+    (*env)->RegisterNatives(env, g_runner_class, sRunnerMethods, 1);
+
+    /* JigActivityCallbacks */
+    jclass callbacks = (*env)->FindClass(env, "jig/JigActivityCallbacks");
+    if (!callbacks) {
+        LOGE("Cannot find jig/JigActivityCallbacks class");
+        return -1;
+    }
+    (*env)->RegisterNatives(env, callbacks, sActivityMethods, 2);
+
+    return 0;
+}
+
+static void register_activity_callbacks(JNIEnv *env) {
+    /* Get Application via ActivityThread.currentApplication() */
+    jclass at_class = (*env)->FindClass(env, "android/app/ActivityThread");
+    if (!at_class) {
+        LOGE("Cannot find ActivityThread class");
+        return;
+    }
+    jmethodID current_app = (*env)->GetStaticMethodID(
+        env, at_class, "currentApplication", "()Landroid/app/Application;");
+    if (!current_app) {
+        LOGE("Cannot find currentApplication method");
+        return;
+    }
+    jobject application = (*env)->CallStaticObjectMethod(env, at_class, current_app);
+    if (!application) {
+        LOGE("currentApplication() returned null");
+        return;
+    }
+
+    /* Create JigActivityCallbacks instance and register */
+    jclass cb_class = (*env)->FindClass(env, "jig/JigActivityCallbacks");
+    if (!cb_class) {
+        LOGE("Cannot find JigActivityCallbacks class");
+        return;
+    }
+    jmethodID cb_init = (*env)->GetMethodID(env, cb_class, "<init>", "()V");
+    jobject cb_instance = (*env)->NewObject(env, cb_class, cb_init);
+
+    jclass app_class = (*env)->FindClass(env, "android/app/Application");
+    jmethodID register_method = (*env)->GetMethodID(
+        env, app_class, "registerActivityLifecycleCallbacks",
+        "(Landroid/app/Application$ActivityLifecycleCallbacks;)V");
+    (*env)->CallVoidMethod(env, application, register_method, cb_instance);
+
+    LOGI("Activity lifecycle callbacks registered");
+}
+
 /* --- JNI entry point ----------------------------------------------------- */
 
 JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     (void)reserved;
     g_jvm = vm;
 
-    /* Platform ops — no screenshot for standalone injection */
+    JNIEnv *env;
+    (*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6);
+
+    /* Register native methods for our Java helpers */
+    if (register_natives(env) != 0) {
+        LOGE("Failed to register native methods");
+    }
+
+    /* Register activity lifecycle callbacks */
+    register_activity_callbacks(env);
+
+    /* Platform ops */
     static jig_platform_ops ops = {
-        .screenshot = NULL,
+        .screenshot = NULL,  /* wired in Task 6 */
         .get_app_info = android_get_app_info,
         .log = android_log,
+        .run_on_main_thread = android_run_on_main_thread,
     };
     jig_platform_set_ops(&ops);
 
-    /* Build app info from /proc/self/cmdline */
+    /* Build app info */
     jig_app_info proc_info = {0};
     android_get_app_info(&proc_info);
 
@@ -109,7 +271,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         proc_info.expo_version
     );
 
-    /* Free the temporary strings from android_get_app_info */
     free(proc_info.name);
     free(proc_info.bundle_id);
     free(proc_info.platform);
