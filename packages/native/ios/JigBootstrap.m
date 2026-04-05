@@ -29,14 +29,21 @@ static void ios_log(const char *fmt, ...) {
     }
 }
 
+static void ios_run_on_main_thread(void (*callback)(void *ctx), void *ctx) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        callback(ctx);
+    });
+}
+
 jig_server *jig_bootstrap_server(const char *name, const char *bundle_id,
                                   const char *rn_version, const char *expo_version,
                                   int port) {
     // 1. Set platform ops
-    jig_platform_ops ops = {
+    static jig_platform_ops ops = {
         .screenshot = NULL,
         .get_app_info = NULL,
         .log = ios_log,
+        .run_on_main_thread = ios_run_on_main_thread,
     };
     jig_platform_set_ops(&ops);
 
