@@ -162,6 +162,19 @@ jobs:
       - name: Verify connection
         run: node packages/cli/dist/index.js status
 
+      - name: Capture screenshot
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const client = await connect();
+              const result = await client.screenshot();
+              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
+              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
+              await client.disconnect();
+            })();
+          "
+
       - name: Dump logcat on failure
         if: failure()
         timeout-minutes: 1
@@ -178,5 +191,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-android
-          path: /tmp/test-app/
+          path: |
+            /tmp/test-app/
+            /tmp/screenshot-android.png
           retention-days: 7
