@@ -127,7 +127,7 @@ jobs:
           name: habit-tracker-android
           path: /tmp/test-app
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ vars.HABIT_TRACKER_BUILD_RUN_ID }}
+          run-id: ${{ vars.HABIT_TRACKER_ANDROID_BUILD_RUN_ID }}
 
       - name: Extract test APK
         run: |
