@@ -7,8 +7,144 @@ export async function checkDependencies(profile: DeviceProfile): Promise<CheckRe
   if (profile.platform === 'android') {
     return runAndroidChecks(profile);
   }
-  // iOS checks added in Plan 2
+  if (profile.platform === 'ios') {
+    return runIOSChecks(profile);
+  }
   return { ok: true, checks: [] };
+}
+
+export function buildIOSChecks(
+  profile: IOSProfile,
+): Array<{ name: string }> {
+  return [
+    { name: 'Xcode' },
+    { name: 'simctl' },
+    { name: 'runtime' },
+    { name: 'device type' },
+  ];
+}
+
+async function runIOSChecks(profile: IOSProfile): Promise<CheckResult> {
+  const checks: CheckEntry[] = [];
+
+  // Xcode
+  try {
+    const { stdout } = await execFileAsync('xcode-select', ['-p']);
+    const xcodePath = stdout.trim();
+    if (xcodePath) {
+      checks.push({ name: 'Xcode', passed: true, detail: xcodePath });
+    } else {
+      checks.push({
+        name: 'Xcode',
+        passed: false,
+        message: 'Xcode developer tools not found',
+        fix: 'Install Xcode from the App Store, then run: xcode-select --install',
+      });
+    }
+  } catch {
+    checks.push({
+      name: 'Xcode',
+      passed: false,
+      message: 'xcode-select not available or Xcode not installed',
+      fix: 'Install Xcode from the App Store, then run: xcode-select --install',
+    });
+  }
+
+  // simctl
+  let simctlRuntimes: Array<{ identifier: string; name: string; version: string; isAvailable: boolean }> = [];
+  let simctlDeviceTypes: Array<{ identifier: string; name: string }> = [];
+
+  try {
+    const { stdout } = await execFileAsync('xcrun', ['simctl', 'list', 'runtimes', '-j']);
+    const data = JSON.parse(stdout);
+    simctlRuntimes = (data.runtimes || []).filter((r: any) => r.isAvailable && r.name.startsWith('iOS'));
+    checks.push({ name: 'simctl', passed: true, detail: 'available' });
+  } catch {
+    checks.push({
+      name: 'simctl',
+      passed: false,
+      message: 'xcrun simctl not available',
+      fix: 'Install Xcode and accept the license: sudo xcodebuild -license accept',
+    });
+  }
+
+  // runtime
+  if (simctlRuntimes.length > 0) {
+    if (profile.runtime === 'latest') {
+      const best = simctlRuntimes.sort((a, b) => {
+        const aParts = a.version.split('.').map(Number);
+        const bParts = b.version.split('.').map(Number);
+        for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+          const diff = (bParts[i] || 0) - (aParts[i] || 0);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      })[0];
+      checks.push({ name: 'runtime', passed: true, detail: `${best.name} (latest)` });
+    } else {
+      const match = simctlRuntimes.find((r) => r.version.startsWith(profile.runtime));
+      if (match) {
+        checks.push({ name: 'runtime', passed: true, detail: match.name });
+      } else {
+        const available = simctlRuntimes.map((r) => r.version).join(', ');
+        checks.push({
+          name: 'runtime',
+          passed: false,
+          message: `iOS runtime "${profile.runtime}" not installed. Available: ${available}`,
+          fix: `Install via: Xcode > Settings > Platforms > + > iOS ${profile.runtime}`,
+        });
+      }
+    }
+  } else {
+    const failedSimctl = checks.find((c) => c.name === 'simctl' && !c.passed);
+    if (!failedSimctl) {
+      checks.push({
+        name: 'runtime',
+        passed: false,
+        message: 'No iOS runtimes installed',
+        fix: 'Install via: Xcode > Settings > Platforms > + > iOS',
+      });
+    } else {
+      checks.push({
+        name: 'runtime',
+        passed: false,
+        message: 'Cannot check runtimes — simctl not available',
+      });
+    }
+  }
+
+  // device type
+  try {
+    const { stdout } = await execFileAsync('xcrun', ['simctl', 'list', 'devicetypes', '-j']);
+    const data = JSON.parse(stdout);
+    simctlDeviceTypes = data.devicetypes || [];
+    const match = simctlDeviceTypes.find((t) => t.name === profile.device);
+    if (match) {
+      checks.push({ name: 'device type', passed: true, detail: match.identifier });
+    } else {
+      const available = simctlDeviceTypes
+        .filter((t) => t.name.startsWith('iPhone'))
+        .map((t) => t.name)
+        .slice(-10)
+        .join(', ');
+      checks.push({
+        name: 'device type',
+        passed: false,
+        message: `Device type "${profile.device}" not found`,
+        fix: `Available device types include: ${available}`,
+      });
+    }
+  } catch {
+    checks.push({
+      name: 'device type',
+      passed: false,
+      message: 'Cannot check device types — simctl not available',
+      fix: 'Install Xcode and accept the license: sudo xcodebuild -license accept',
+    });
+  }
+
+  const ok = checks.every((c) => c.passed);
+  return { ok, checks };
 }
 
 export function buildAndroidChecks(
