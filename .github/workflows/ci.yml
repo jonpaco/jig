@@ -34,3 +34,26 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  c-core:
+    name: C Core Tests
+    runs-on: macos-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        working-directory: packages/native/core
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
+
+      - name: Build
+        working-directory: packages/native/core/build
+        run: make -j$(sysctl -n hw.logicalcpu)
+
+      - name: Test
+        working-directory: packages/native/core/build
+        run: ctest --output-on-failure
