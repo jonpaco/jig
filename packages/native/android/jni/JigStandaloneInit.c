@@ -283,15 +283,15 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     free(proc_info.platform);
     free(proc_info.rn_version);
 
-    /* Handlers */
-    jig_handler *handshake = jig_handshake_create();
-    jig_handler *screenshot = jig_screenshot_handler_create();
-    jig_handler *handlers[] = { handshake, screenshot };
+    /* Handlers — must be static since the dispatcher stores pointers, not copies */
+    static jig_handler *handlers[2];
+    handlers[0] = jig_handshake_create();
+    handlers[1] = jig_screenshot_handler_create();
 
-    /* Middleware */
-    jig_middleware gate = jig_handshake_gate_create();
-    jig_middleware guard = jig_domain_guard_create(NULL, 0);
-    jig_middleware middlewares[] = { gate, guard };
+    /* Middleware — must be static for the same reason */
+    static jig_middleware middlewares[2];
+    middlewares[0] = jig_handshake_gate_create();
+    middlewares[1] = jig_domain_guard_create(NULL, 0);
 
     /* Dispatcher */
     jig_dispatcher_config *dispatcher = jig_dispatcher_create(
