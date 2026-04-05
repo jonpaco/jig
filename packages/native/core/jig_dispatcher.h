@@ -16,6 +16,15 @@ typedef struct jig_dispatcher_config {
     int command_count;
 } jig_dispatcher_config;
 
+typedef struct {
+    jig_handler *handler;
+    cJSON *params;        /* ownership transferred from dispatcher */
+    jig_session *session;
+    cJSON *id;            /* cloned from parsed message */
+} jig_async_dispatch_ctx;
+
+void jig_dispatcher_run_on_main(void *raw_ctx);
+
 /*
  * Create a dispatcher config. Builds the handler lookup table and populates
  * command_names from the handler methods (excluding "client.hello").
