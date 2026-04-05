@@ -87,7 +87,7 @@ jobs:
 
   android:
     name: Android Injection Test
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 20
 
     steps:
