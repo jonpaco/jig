@@ -1,5 +1,6 @@
 #include "jig_server.h"
 #include <libwebsockets.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,6 +25,7 @@ static void queue_push(jig_send_queue *q, const char *text) {
     jig_send_node *node = malloc(sizeof(jig_send_node));
     if (!node) return;
     node->text = strdup(text);
+    if (!node->text) { free(node); return; }
     node->next = NULL;
     if (q->tail) {
         q->tail->next = node;
@@ -66,7 +68,7 @@ struct jig_server {
     jig_dispatcher_config *dispatcher;
     jig_app_info *app_info;
     struct lws_context *lws_ctx;
-    volatile int stop_flag;
+    _Atomic int stop_flag;
     int next_connection_id;
 };
 
@@ -143,6 +145,7 @@ static int callback_jig(struct lws *wsi, enum lws_callback_reasons reason,
     }
 
     case LWS_CALLBACK_CLOSED: {
+        /* TODO: notify dispatcher of disconnect when session tracking is added */
         if (conn) {
             if (conn->session) {
                 jig_session_destroy(conn->session);
@@ -161,6 +164,21 @@ static int callback_jig(struct lws *wsi, enum lws_callback_reasons reason,
     return 0;
 }
 
+/* --- Protocol table (file-scope, used by jig_server_create) --- */
+
+static const struct lws_protocols protocols[] = {
+    {
+        "jig-protocol",
+        callback_jig,
+        sizeof(jig_conn_data),
+        4096,   /* rx buffer size */
+        0,      /* id */
+        NULL,   /* user */
+        0       /* tx_packet_size */
+    },
+    LWS_PROTOCOL_LIST_TERM
+};
+
 /* --- Public API --- */
 
 jig_server *jig_server_create(int port, jig_dispatcher_config *dispatcher, jig_app_info *app_info) {
@@ -172,19 +190,6 @@ jig_server *jig_server_create(int port, jig_dispatcher_config *dispatcher, jig_a
     server->app_info = app_info;
     server->stop_flag = 0;
     server->next_connection_id = 1;
-
-    static const struct lws_protocols protocols[] = {
-        {
-            "jig-protocol",
-            callback_jig,
-            sizeof(jig_conn_data),
-            4096,   /* rx buffer size */
-            0,      /* id */
-            NULL,   /* user */
-            0       /* tx_packet_size */
-        },
-        LWS_PROTOCOL_LIST_TERM
-    };
 
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
