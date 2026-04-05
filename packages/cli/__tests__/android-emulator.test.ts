@@ -2,6 +2,7 @@ import {
   getConnectedDevices,
   findBestSystemImage,
   getHostArch,
+  ensureDevice,
 } from '../src/android/emulator';
 
 jest.mock('child_process', () => ({
@@ -118,5 +119,16 @@ describe('findBestSystemImage', () => {
 `);
     const image = await findBestSystemImage('arm64-v8a');
     expect(image).toBe('system-images;android-34;google_apis;arm64-v8a');
+  });
+});
+
+describe('ensureDevice', () => {
+  afterEach(() => jest.resetAllMocks());
+
+  it('returns immediately when a device is already connected', async () => {
+    mockExecFileResult('List of devices attached\nemulator-5554\tdevice\n\n');
+    const result = await ensureDevice();
+    expect(result.alreadyRunning).toBe(true);
+    expect(result.serial).toBe('emulator-5554');
   });
 });
