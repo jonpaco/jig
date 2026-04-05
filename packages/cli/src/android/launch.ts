@@ -1,3 +1,6 @@
+// Required external tools: adb (Android SDK platform-tools),
+// plus all tools listed in inject.ts (apktool, zipalign, apksigner, aapt, keytool).
+
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';

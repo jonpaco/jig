@@ -1,3 +1,15 @@
+/**
+ * APK injection pipeline for Jig.
+ *
+ * Required external tools:
+ * - apktool: APK decode/rebuild (https://apktool.org/)
+ * - zipalign: APK alignment (Android SDK build-tools)
+ * - apksigner: APK signing (Android SDK build-tools)
+ * - aapt: APK asset packaging/inspection (Android SDK build-tools)
+ * - keytool: Java keystore management (JDK)
+ * - adb: Android Debug Bridge (Android SDK platform-tools)
+ */
+
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';

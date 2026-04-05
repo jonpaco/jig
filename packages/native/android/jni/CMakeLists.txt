@@ -11,6 +11,8 @@ add_subdirectory(../../core ${CMAKE_BINARY_DIR}/core)
 add_library(jig SHARED JigStandaloneInit.c)
 target_link_libraries(jig PRIVATE jig_core)
 
+# Note: pthread is part of Android's Bionic libc and does not need explicit linking
+
 # Android system libraries
 find_library(LOG_LIB log)
 target_link_libraries(jig PRIVATE ${LOG_LIB})

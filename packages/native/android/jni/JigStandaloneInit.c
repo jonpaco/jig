@@ -6,8 +6,10 @@
  * It sets up the C core platform ops and starts the WebSocket server on a
  * background thread.
  *
- * Screenshot is deferred — it requires an Activity context that isn't
- * available at JNI_OnLoad time.
+ * Screenshot handler intentionally deferred from Plan 3 scope.
+ * JNI screenshot requires an Activity context that is not available
+ * at JNI_OnLoad time. Will be implemented when Activity lifecycle
+ * hooks are added (see deferred work in migration spec).
  */
 
 #include <jni.h>
