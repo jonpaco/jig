@@ -2,6 +2,7 @@
 #define JIG_PLATFORM_H
 
 #include <stdarg.h>
+#include "jig_app_info.h"
 
 typedef struct {
     unsigned char *data;   /* JPEG/PNG bytes, caller frees */
@@ -17,16 +18,8 @@ typedef struct {
 } jig_screenshot_opts;
 
 typedef struct {
-    char *name;
-    char *bundle_id;
-    char *platform;
-    char *rn_version;
-    char *expo_version;
-} jig_platform_app_info;
-
-typedef struct {
     int (*screenshot)(jig_screenshot_opts *opts, jig_screenshot_result *result);
-    int (*get_app_info)(jig_platform_app_info *info);
+    int (*get_app_info)(jig_app_info *info);
     void (*log)(const char *fmt, ...);
 } jig_platform_ops;
 

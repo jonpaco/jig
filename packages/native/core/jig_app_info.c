@@ -11,6 +11,8 @@ jig_app_info *jig_app_info_create(const char *name,
                                    const char *platform,
                                    const char *rn_version,
                                    const char *expo_version) {
+    if (!name || !bundle_id || !platform || !rn_version) return NULL;
+
     jig_app_info *info = calloc(1, sizeof(jig_app_info));
     if (!info) return NULL;
 
@@ -19,6 +21,11 @@ jig_app_info *jig_app_info_create(const char *name,
     info->platform = strdup(platform);
     info->rn_version = strdup(rn_version);
     info->expo_version = safe_strdup(expo_version);
+
+    if (!info->name || !info->bundle_id || !info->platform || !info->rn_version) {
+        jig_app_info_free(info);
+        return NULL;
+    }
 
     return info;
 }

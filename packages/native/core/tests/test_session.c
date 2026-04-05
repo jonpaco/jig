@@ -1,16 +1,7 @@
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "../jig_session.h"
-
-static int failures = 0;
-
-#define ASSERT(cond, msg) do { \
-    if (!(cond)) { \
-        fprintf(stderr, "FAIL: %s (line %d)\n", msg, __LINE__); \
-        failures++; \
-    } \
-} while (0)
+#include "test_util.h"
 
 static char *last_sent_text = NULL;
 static void *last_sent_user_data = NULL;

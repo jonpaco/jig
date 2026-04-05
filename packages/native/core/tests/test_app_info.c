@@ -1,16 +1,7 @@
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "../jig_app_info.h"
-
-static int failures = 0;
-
-#define ASSERT(cond, msg) do { \
-    if (!(cond)) { \
-        fprintf(stderr, "FAIL: %s (line %d)\n", msg, __LINE__); \
-        failures++; \
-    } \
-} while (0)
+#include "test_util.h"
 
 static void test_create_with_all_fields(void) {
     jig_app_info *info = jig_app_info_create(

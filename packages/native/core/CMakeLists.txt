@@ -32,3 +32,7 @@ add_test(NAME test_session COMMAND test_session)
 add_executable(test_app_info tests/test_app_info.c)
 target_link_libraries(test_app_info jig_core)
 add_test(NAME test_app_info COMMAND test_app_info)
+
+add_executable(test_platform tests/test_platform.c)
+target_link_libraries(test_platform jig_core)
+add_test(NAME test_platform COMMAND test_platform)

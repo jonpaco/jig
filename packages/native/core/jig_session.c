@@ -47,7 +47,9 @@ int jig_session_add_domain(jig_session *session, const char *domain) {
     if (!new_list) return -1;
 
     session->enabled_domains = new_list;
-    session->enabled_domains[session->enabled_domain_count] = strdup(domain);
+    char *dup = strdup(domain);
+    if (!dup) return -1;
+    session->enabled_domains[session->enabled_domain_count] = dup;
     session->enabled_domain_count++;
 
     return 0;

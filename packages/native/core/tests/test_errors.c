@@ -1,16 +1,7 @@
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "../jig_errors.h"
-
-static int failures = 0;
-
-#define ASSERT(cond, msg) do { \
-    if (!(cond)) { \
-        fprintf(stderr, "FAIL: %s (line %d)\n", msg, __LINE__); \
-        failures++; \
-    } \
-} while (0)
+#include "test_util.h"
 
 static void test_parse_error(void) {
     jig_error *err = jig_error_parse("unexpected token");
