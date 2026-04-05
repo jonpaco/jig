@@ -21,6 +21,7 @@ typedef struct {
     int (*screenshot)(jig_screenshot_opts *opts, jig_screenshot_result *result);
     int (*get_app_info)(jig_app_info *info);
     void (*log)(const char *fmt, ...);
+    void (*run_on_main_thread)(void (*callback)(void *ctx), void *ctx);
 } jig_platform_ops;
 
 void jig_platform_set_ops(const jig_platform_ops *ops);
