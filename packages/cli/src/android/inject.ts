@@ -78,8 +78,8 @@ export async function injectApk(options: InjectOptions): Promise<string> {
     // 4b. Copy Jig helper smali classes into the APK
     copyJigSmali(decodedDir, libjigDir);
 
-    // 5. Rebuild APK (--use-aapt2 required for modern apps with $ in resource filenames)
-    await execFileAsync('apktool', ['b', '--use-aapt2', '-o', rebuiltApk, decodedDir]);
+    // 5. Rebuild APK
+    await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
 
     // 6. Zipalign
     await execFileAsync('zipalign', ['-f', '4', rebuiltApk, alignedApk]);
