@@ -386,8 +386,9 @@ async function bootEmulator(): Promise<string> {
 
   proc.unref();
 
-  // Wait for adb to see the emulator (in any state — including offline)
-  const deadline = Date.now() + 60_000;
+  // Wait for adb to see the emulator (in any state — including offline).
+  // CI cold boots can take 60s+ before adb even sees the device.
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     try {
       const { stdout } = await execFileAsync('adb', ['devices']);
@@ -405,7 +406,7 @@ async function bootEmulator(): Promise<string> {
   }
 
   throw new Error(
-    `Emulator started but not detected by adb within 30s.\n` +
+    `Emulator started but not detected by adb within 120s.\n` +
     `Check that the Android emulator is installed:\n` +
     `  sdkmanager "emulator"`,
   );
