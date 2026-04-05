@@ -58,6 +58,15 @@ export async function ensureDevice(): Promise<EnsureDeviceResult> {
       config: { platform: 'android', ...ANDROID_DEFAULTS },
       timeout: 120_000,
     });
+
+    const fs = await import('fs');
+    const { generateManifest } = await import('@jig/device');
+    const manifestPath = 'jig.devices.yml';
+    if (!fs.existsSync(manifestPath)) {
+      fs.writeFileSync(manifestPath, generateManifest('android'));
+      process.stderr.write('Created jig.devices.yml with default profile. Edit to customize.\n');
+    }
+
     return { serial: handle.id, alreadyRunning: false, booted: true };
   }
 }
