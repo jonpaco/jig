@@ -84,3 +84,114 @@ jobs:
           name: integration-ios
           path: /tmp/screenshot.png
           retention-days: 7
+
+  android:
+    name: Android Injection Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build monorepo
+        run: pnpm build
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ndk;26.1.10909125
+
+      - name: Enable KVM and install emulator dependencies
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq && sudo apt-get install -y -qq libpulse0
+          # Install apktool (Ubuntu may not have it, or ships an old version)
+          curl -sL https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -o /usr/local/bin/apktool
+          curl -sL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o /usr/local/bin/apktool.jar
+          chmod +x /usr/local/bin/apktool
+
+      - name: Install emulator and system image
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "system-images;android-34;google_apis;x86_64" \
+            "emulator" || true
+
+      - name: Build libjig.so
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
+          bash scripts/build-so.sh
+
+      - name: Download test app artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: habit-tracker-android
+          path: /tmp/test-app
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ vars.HABIT_TRACKER_ANDROID_BUILD_RUN_ID }}
+
+      - name: Extract test APK
+        run: |
+          APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
+          echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
+
+      - name: Launch app with Jig
+        run: |
+          export PATH="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1):$PATH"
+          node packages/cli/dist/index.js launch "$APK_PATH" --skip-verify
+
+      - name: Wait for Jig server
+        run: node packages/cli/dist/index.js wait --timeout 120000
+
+      - name: Verify connection
+        run: node packages/cli/dist/index.js status
+
+      - name: Capture screenshot
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const client = await connect();
+              const result = await client.screenshot();
+              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
+              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
+              await client.disconnect();
+            })();
+          "
+
+      - name: Dump logcat on failure
+        if: failure()
+        timeout-minutes: 1
+        run: |
+          echo "=== adb devices ==="
+          timeout 5 adb devices 2>&1 || true
+          echo "=== logcat (last 50 lines) ==="
+          timeout 10 adb logcat -d 2>&1 | tail -50 || echo "No logcat available"
+          echo "=== logcat Jig/libjig ==="
+          timeout 10 adb logcat -d 2>&1 | grep -i "jig\|habittracker" | tail -20 || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-android
+          path: |
+            /tmp/test-app/
+            /tmp/screenshot-android.png
+          retention-days: 7

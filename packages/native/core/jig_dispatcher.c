@@ -1,4 +1,5 @@
 #include "jig_dispatcher.h"
+#include "jig_platform.h"
 #include "jig_protocol.h"
 #include <stdlib.h>
 #include <string.h>
@@ -132,10 +133,31 @@ void jig_dispatcher_handle_open(jig_dispatcher_config *config,
     cJSON_Delete(msg);
 }
 
+void jig_dispatcher_run_on_main(void *raw_ctx) {
+    jig_async_dispatch_ctx *ctx = (jig_async_dispatch_ctx *)raw_ctx;
+
+    jig_error *handler_err = NULL;
+    cJSON *result = ctx->handler->handle(ctx->handler, ctx->params,
+                                          ctx->session, &handler_err);
+
+    if (handler_err) {
+        if (ctx->id) {
+            send_error(handler_err, ctx->id, ctx->session);
+        }
+        jig_error_free(handler_err);
+    } else if (ctx->id) {
+        send_result(result, ctx->id, ctx->session);
+    }
+
+    if (result) cJSON_Delete(result);
+    if (ctx->params) cJSON_Delete(ctx->params);
+    if (ctx->id) cJSON_Delete(ctx->id);
+    free(ctx);
+}
+
 /*
  * Dispatch a JSON-RPC 2.0 message. Executes synchronously on the caller's
- * thread. The handler's thread_target field is informational only; the caller
- * is responsible for invoking this on the appropriate thread/queue.
+ * thread, except for JIG_THREAD_MAIN handlers when run_on_main_thread is set.
  */
 void jig_dispatcher_dispatch(jig_dispatcher_config *config,
                               const char *text,
@@ -205,7 +227,31 @@ void jig_dispatcher_dispatch(jig_dispatcher_config *config,
         return;
     }
 
-    /* 5. Execute handler */
+    /* 5. Execute handler — async for JIG_THREAD_MAIN, sync otherwise */
+    const jig_platform_ops *plat_ops = jig_platform_get_ops();
+    if (handler->thread_target == JIG_THREAD_MAIN &&
+        plat_ops && plat_ops->run_on_main_thread) {
+
+        jig_async_dispatch_ctx *ctx = calloc(1, sizeof(jig_async_dispatch_ctx));
+        ctx->handler = handler;
+        ctx->session = session;
+
+        /* Transfer ownership of params: detach from parsed json */
+        if (params) {
+            ctx->params = cJSON_DetachItemFromObject(json, "params");
+        }
+        /* Clone the id for response building */
+        if (id) {
+            ctx->id = cJSON_Duplicate(id, 1);
+        }
+
+        plat_ops->run_on_main_thread(jig_dispatcher_run_on_main, ctx);
+
+        /* Clean up the parsed message (params already detached) */
+        cJSON_Delete(json);
+        return;
+    }
+
     jig_error *handler_err = NULL;
     cJSON *result = handler->handle(handler, params, session, &handler_err);
 

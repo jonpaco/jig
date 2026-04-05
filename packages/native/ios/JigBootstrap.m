@@ -29,14 +29,21 @@ static void ios_log(const char *fmt, ...) {
     }
 }
 
+static void ios_run_on_main_thread(void (*callback)(void *ctx), void *ctx) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        callback(ctx);
+    });
+}
+
 jig_server *jig_bootstrap_server(const char *name, const char *bundle_id,
                                   const char *rn_version, const char *expo_version,
                                   int port) {
     // 1. Set platform ops
-    jig_platform_ops ops = {
+    static jig_platform_ops ops = {
         .screenshot = NULL,
         .get_app_info = NULL,
         .log = ios_log,
+        .run_on_main_thread = ios_run_on_main_thread,
     };
     jig_platform_set_ops(&ops);
 
@@ -46,14 +53,14 @@ jig_server *jig_bootstrap_server(const char *name, const char *bundle_id,
     );
 
     // 3. Create handlers and middleware
-    jig_handler *handlers[] = {
-        jig_handshake_create(),
-        jig_screenshot_handler_create(),
-    };
-    jig_middleware middlewares[] = {
-        jig_handshake_gate_create(),
-        jig_domain_guard_create(NULL, 0),
-    };
+    // These must persist beyond this function — the dispatcher stores pointers, not copies.
+    static jig_handler *handlers[2];
+    handlers[0] = jig_handshake_create();
+    handlers[1] = jig_screenshot_handler_create();
+
+    static jig_middleware middlewares[2];
+    middlewares[0] = jig_handshake_gate_create();
+    middlewares[1] = jig_domain_guard_create(NULL, 0);
 
     // 4. Create dispatcher
     jig_dispatcher_config *dispatcher = jig_dispatcher_create(
