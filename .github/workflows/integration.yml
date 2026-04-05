@@ -134,9 +134,6 @@ jobs:
           APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
           echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
 
-      - name: Inject Jig into APK
-        run: node packages/cli/dist/index.js inject "$APK_PATH" --output /tmp/test-app/HabitTracker-jig.apk
-
       - name: Run Android emulator and test
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -153,14 +150,8 @@ jobs:
             adb shell settings put global transition_animation_scale 0.0
             adb shell settings put global animator_duration_scale 0.0
 
-            # Install injected APK
-            adb install /tmp/test-app/HabitTracker-jig.apk
-
-            # Launch the app (extract package/activity via aapt2 from build-tools)
-            AAPT2=$(find "$ANDROID_HOME/build-tools" -name "aapt2" | sort -V | tail -1)
-            PACKAGE=$($AAPT2 dump badging /tmp/test-app/HabitTracker-jig.apk | grep "package: name=" | sed "s/.*name='\([^']*\)'.*/\1/")
-            ACTIVITY=$($AAPT2 dump badging /tmp/test-app/HabitTracker-jig.apk | grep "launchable-activity" | sed "s/.*name='\([^']*\)'.*/\1/")
-            adb shell am start -n "$PACKAGE/$ACTIVITY"
+            # Inject, install, and launch app with Jig (jig launch handles all three)
+            node packages/cli/dist/index.js launch "$APK_PATH" --skip-verify
 
             # Forward port and wait for Jig
             adb forward tcp:4042 tcp:4042
@@ -174,5 +165,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: integration-android
-          path: /tmp/test-app/HabitTracker-jig.apk
+          path: /tmp/test-app/
           retention-days: 7
