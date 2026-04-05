@@ -59,9 +59,10 @@ program
 
 program
   .command('launch')
-  .description('Install and launch an app on iOS simulator with Jig injected')
-  .argument('<app-path>', 'Path to the .app bundle')
-  .option('--framework <path>', 'Path to Jig.framework (auto-detected if omitted)')
+  .description('Install and launch an app with Jig injected (.app for iOS, .apk for Android)')
+  .argument('<app-path>', 'Path to the .app bundle or .apk file')
+  .option('--framework <path>', 'Path to Jig.framework for iOS (auto-detected if omitted)')
+  .option('--libjig <path>', 'Path to libjig.so directory for Android (auto-detected if omitted)')
   .option('-p, --port <port>', 'Jig server port', '4042')
   .option('--skip-verify', 'Skip SHA-256 integrity check', false)
   .action(async (appPath: string, opts) => {
@@ -69,6 +70,7 @@ program
       const output = await launch({
         appPath,
         framework: opts.framework,
+        libjig: opts.libjig,
         port: parseInt(opts.port, 10),
         skipVerify: opts.skipVerify,
       });

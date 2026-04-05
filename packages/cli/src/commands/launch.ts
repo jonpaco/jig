@@ -3,12 +3,14 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { resolveFramework, verifyBinaryIntegrity } from '../framework';
+import { launchAndroid } from '../android/launch';
 
 const execFileAsync = promisify(execFile);
 
 export interface LaunchOptions {
   appPath: string;
   framework?: string;
+  libjig?: string;
   port?: number;
   skipVerify?: boolean;
 }
@@ -84,12 +86,18 @@ async function findBootedSimulator(): Promise<string> {
  * Install and launch an app on the booted simulator with Jig injected.
  */
 export async function launch(options: LaunchOptions): Promise<string> {
-  const { appPath, framework, port = 4042, skipVerify = false } = options;
+  const { appPath, framework, libjig, port = 4042, skipVerify = false } = options;
 
   if (!fs.existsSync(appPath)) {
     throw new Error(`App not found at ${appPath}`);
   }
 
+  // Android path: .apk files
+  if (appPath.endsWith('.apk')) {
+    return launchAndroid({ apkPath: appPath, libjig, port });
+  }
+
+  // iOS path: .app bundles
   // Resolve and verify framework
   const frameworkBinary = await resolveFramework(framework);
   const frameworkDir = path.dirname(frameworkBinary);
