@@ -162,6 +162,10 @@ jobs:
       - name: Verify connection
         run: node packages/cli/dist/index.js status
 
+      - name: Dump logcat on failure
+        if: failure()
+        run: adb logcat -d -s Jig 2>&1 | tail -30 || true
+
       - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
