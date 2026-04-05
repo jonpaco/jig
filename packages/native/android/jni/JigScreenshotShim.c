@@ -53,6 +53,7 @@ static int cache_jni_refs(JNIEnv *env) {
         jclass cls = (*env)->FindClass(env, name); \
         if (!cls) { LOGE("Cannot find class: %s", name); return -1; } \
         var = (*env)->NewGlobalRef(env, cls); \
+        (*env)->DeleteLocalRef(env, cls); \
     } while(0)
 
     CACHE_CLASS(s_bitmap_class, "android/graphics/Bitmap");

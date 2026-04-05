@@ -131,7 +131,6 @@ jobs:
 
       - name: Extract test APK
         run: |
-          cd /tmp/test-app
           APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
           echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
 
@@ -157,9 +156,10 @@ jobs:
             # Install injected APK
             adb install /tmp/test-app/HabitTracker-jig.apk
 
-            # Launch the app
-            PACKAGE=$(aapt dump badging /tmp/test-app/HabitTracker-jig.apk | grep "package: name=" | sed "s/.*name='\([^']*\)'.*/\1/")
-            ACTIVITY=$(aapt dump badging /tmp/test-app/HabitTracker-jig.apk | grep "launchable-activity" | sed "s/.*name='\([^']*\)'.*/\1/")
+            # Launch the app (extract package/activity via aapt2 from build-tools)
+            AAPT2=$(find "$ANDROID_HOME/build-tools" -name "aapt2" | sort -V | tail -1)
+            PACKAGE=$($AAPT2 dump badging /tmp/test-app/HabitTracker-jig.apk | grep "package: name=" | sed "s/.*name='\([^']*\)'.*/\1/")
+            ACTIVITY=$($AAPT2 dump badging /tmp/test-app/HabitTracker-jig.apk | grep "launchable-activity" | sed "s/.*name='\([^']*\)'.*/\1/")
             adb shell am start -n "$PACKAGE/$ACTIVITY"
 
             # Forward port and wait for Jig

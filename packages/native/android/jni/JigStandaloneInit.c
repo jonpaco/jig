@@ -184,7 +184,10 @@ static int register_natives(JNIEnv *env) {
         LOGE("Cannot find postToMainThread method");
         return -1;
     }
-    (*env)->RegisterNatives(env, g_runner_class, sRunnerMethods, 1);
+    if ((*env)->RegisterNatives(env, g_runner_class, sRunnerMethods, 1) < 0) {
+        LOGE("Failed to register JigMainThreadRunner natives");
+        return -1;
+    }
 
     /* JigActivityCallbacks */
     jclass callbacks = (*env)->FindClass(env, "jig/JigActivityCallbacks");
@@ -192,7 +195,10 @@ static int register_natives(JNIEnv *env) {
         LOGE("Cannot find jig/JigActivityCallbacks class");
         return -1;
     }
-    (*env)->RegisterNatives(env, callbacks, sActivityMethods, 2);
+    if ((*env)->RegisterNatives(env, callbacks, sActivityMethods, 2) < 0) {
+        LOGE("Failed to register JigActivityCallbacks natives");
+        return -1;
+    }
 
     return 0;
 }
