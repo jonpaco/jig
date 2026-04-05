@@ -65,6 +65,8 @@ program
   .option('--libjig <path>', 'Path to libjig.so directory for Android (auto-detected if omitted)')
   .option('-p, --port <port>', 'Jig server port', '4042')
   .option('--skip-verify', 'Skip SHA-256 integrity check', false)
+  .option('--device <profile>', 'Boot a device from jig.devices.yml profile before launching')
+  .option('--no-device', 'Skip auto-booting a device if none is running')
   .action(async (appPath: string, opts) => {
     try {
       const output = await launch({
@@ -73,6 +75,8 @@ program
         libjig: opts.libjig,
         port: parseInt(opts.port, 10),
         skipVerify: opts.skipVerify,
+        deviceProfile: opts.device === false ? undefined : opts.device,
+        noDevice: opts.device === false,
       });
       console.log(output);
     } catch (err: unknown) {

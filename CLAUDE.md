@@ -15,6 +15,7 @@ pnpm monorepo:
 | `@jig/sdk` | `packages/sdk/` | TypeScript client — commands, events, element selection |
 | `@jig/jest` | `packages/jest/` | Jest preset — setup/teardown, matchers |
 | `@jig/cli` | `packages/cli/` | CLI — `jig launch`, `jig status`, `jig wait`, `jig report` |
+| `@jig/device` | `packages/device/` | Device management — deterministic emulator & simulator lifecycle |
 | `@jig/mcp` | `packages/mcp/` | MCP server — exposes Jig as tools for AI agents |
 
 | Other | Path | Purpose |
@@ -56,6 +57,17 @@ pnpm monorepo:
 - Tests with Jest
 - pnpm for package management
 - Changesets for versioning
+
+### Device Management
+
+- `jig.devices.yml` at repo root declares named device profiles (Android emulators, iOS simulators)
+- `jig-device check <profile>` validates all dependencies with actionable error messages
+- `jig-device boot <profile>` creates and boots a device deterministically from the manifest
+- `jig-device list` / `jig-device kill` for lifecycle management
+- `--verbose` or `JIG_DEBUG=1` for detailed logging of every command and decision
+- Android: writes AVD `config.ini` directly (bypasses `avdmanager`), uses on-device readiness script (`jig-ready.sh`)
+- iOS: wraps `xcrun simctl`, erases before boot for determinism, disables keyboard autocorrect
+- `jig launch` auto-boots a device if none is running; `--device <profile>` for explicit selection, `--no-device` to skip
 
 ### Testing
 

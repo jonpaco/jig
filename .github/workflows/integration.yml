@@ -35,6 +35,9 @@ jobs:
       - name: Build Jig.framework
         run: cd packages/native && pnpm build:framework
 
+      - name: Check device dependencies
+        run: node packages/device/dist/cli.js check ios-ci
+
       - name: Download test app artifact
         uses: actions/download-artifact@v4
         with:
@@ -51,9 +54,7 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
       - name: Boot simulator
-        run: |
-          xcrun simctl boot "iPhone 16" 2>/dev/null || true
-          xcrun simctl bootstatus "iPhone 16" -b
+        run: node packages/device/dist/cli.js boot ios-ci --timeout 60000
 
       - name: Launch app with Jig
         run: node packages/cli/dist/index.js launch "$APP_PATH" --skip-verify
@@ -76,6 +77,10 @@ jobs:
               await client.disconnect();
             })();
           "
+
+      - name: Cleanup
+        if: always()
+        run: node packages/device/dist/cli.js kill --all
 
       - name: Upload artifacts
         if: always()
@@ -111,27 +116,29 @@ jobs:
       - name: Build monorepo
         run: pnpm build
 
-      - name: Setup Android SDK
+      - name: Setup Android SDK and CI dependencies
         uses: android-actions/setup-android@v3
         with:
           packages: ndk;26.1.10909125
-
-      - name: Enable KVM and install emulator dependencies
-        run: |
+      - run: |
+          # KVM for hardware acceleration
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          # libpulse0 (emulator links it at load time regardless of -no-audio)
           sudo apt-get update -qq && sudo apt-get install -y -qq libpulse0
-          # Install apktool (Ubuntu may not have it, or ships an old version)
+          # apktool for APK injection
           curl -sL https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -o /usr/local/bin/apktool
           curl -sL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o /usr/local/bin/apktool.jar
           chmod +x /usr/local/bin/apktool
+          # System image and emulator
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "system-images;android-34;google_apis;x86_64" "emulator" || true
 
-      - name: Install emulator and system image
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "system-images;android-34;google_apis;x86_64" \
-            "emulator" || true
+      - name: Check device dependencies
+        run: node packages/device/dist/cli.js check android-ci
+
+      - name: Boot emulator
+        run: node packages/device/dist/cli.js boot android-ci --timeout 120000
 
       - name: Build libjig.so
         run: |
@@ -195,3 +202,7 @@ jobs:
             /tmp/test-app/
             /tmp/screenshot-android.png
           retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: node packages/device/dist/cli.js kill --all

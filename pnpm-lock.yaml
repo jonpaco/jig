@@ -36,6 +36,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@jig/device':
+        specifier: workspace:*
+        version: link:../device
       '@jig/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -45,6 +48,19 @@ importers:
       commander:
         specifier: ^13.1.0
         version: 13.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
+
+  packages/device:
+    dependencies:
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+      yaml:
+        specifier: ^2.7.0
+        version: 2.8.3
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
