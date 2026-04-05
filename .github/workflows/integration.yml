@@ -87,7 +87,7 @@ jobs:
 
   android:
     name: Android Injection Test
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
@@ -116,10 +116,16 @@ jobs:
         with:
           packages: ndk;26.1.10909125
 
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Install emulator and system image
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "system-images;android-34;google_apis;arm64-v8a" \
+            "system-images;android-34;google_apis;x86_64" \
             "emulator" || true
 
       - name: Build libjig.so
