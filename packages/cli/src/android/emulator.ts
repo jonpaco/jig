@@ -415,6 +415,8 @@ async function bootEmulator(): Promise<string> {
         const parts = line.trim().split('\t');
         if (parts[0]?.startsWith('emulator-') && parts[1]) {
           process.stderr.write(`  Emulator detected: ${parts[0]} (${parts[1]})\n`);
+          // Close stderr pipe so Node can exit (piped streams hold the event loop)
+          if (proc.stderr) { proc.stderr.destroy(); }
           return parts[0];
         }
       }
