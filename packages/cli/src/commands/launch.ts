@@ -13,6 +13,8 @@ export interface LaunchOptions {
   libjig?: string;
   port?: number;
   skipVerify?: boolean;
+  deviceProfile?: string;
+  noDevice?: boolean;
 }
 
 /**
