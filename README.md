@@ -1,3 +1,4 @@
+[![CI](https://github.com/jonpaco/jig/actions/workflows/ci.yml/badge.svg)](https://github.com/jonpaco/jig/actions/workflows/ci.yml) [![Integration](https://github.com/jonpaco/jig/actions/workflows/integration.yml/badge.svg)](https://github.com/jonpaco/jig/actions/workflows/integration.yml)
 # Jig
 
 A direct connection to your running React Native app.
