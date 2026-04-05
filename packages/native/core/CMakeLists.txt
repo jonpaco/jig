@@ -14,6 +14,10 @@ add_library(jig_core STATIC
     jig_app_info.c
     jig_errors.c
     jig_session.c
+    jig_dispatcher.c
+    handlers/jig_handshake.c
+    middleware/jig_handshake_gate.c
+    middleware/jig_domain_guard.c
 )
 target_include_directories(jig_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(jig_core PUBLIC cjson)
@@ -36,3 +40,15 @@ add_test(NAME test_app_info COMMAND test_app_info)
 add_executable(test_platform tests/test_platform.c)
 target_link_libraries(test_platform jig_core)
 add_test(NAME test_platform COMMAND test_platform)
+
+add_executable(test_dispatcher tests/test_dispatcher.c)
+target_link_libraries(test_dispatcher jig_core)
+add_test(NAME test_dispatcher COMMAND test_dispatcher)
+
+add_executable(test_handshake tests/test_handshake.c)
+target_link_libraries(test_handshake jig_core)
+add_test(NAME test_handshake COMMAND test_handshake)
+
+add_executable(test_middleware tests/test_middleware.c)
+target_link_libraries(test_middleware jig_core)
+add_test(NAME test_middleware COMMAND test_middleware)
