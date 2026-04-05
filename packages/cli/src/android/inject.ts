@@ -79,7 +79,13 @@ export async function injectApk(options: InjectOptions): Promise<string> {
     copyJigSmali(decodedDir, libjigDir);
 
     // 5. Rebuild APK
-    await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
+    // Try with --use-aapt2 first (needed for v2 with Material Design 3 $ filenames),
+    // fall back to plain build for v3+ which uses aapt2 by default.
+    try {
+      await execFileAsync('apktool', ['b', '--use-aapt2', '-o', rebuiltApk, decodedDir]);
+    } catch {
+      await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
+    }
 
     // 6. Zipalign
     await execFileAsync('zipalign', ['-f', '4', rebuiltApk, alignedApk]);
