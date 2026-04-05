@@ -243,9 +243,9 @@ export async function ensureDevice(): Promise<EnsureDeviceResult> {
   await waitForBoot(serial);
   await disableAnimations(serial);
 
-  if (isCI) {
-    registerCleanup(serial);
-  }
+  // Don't register cleanup — CI runners are ephemeral and kill all processes on job end.
+  // Registering process.on('exit') would kill the emulator when `jig launch` exits,
+  // before `jig wait` and `jig status` can run in subsequent CI steps.
 
   return { serial, alreadyRunning: false, booted: true };
 }
