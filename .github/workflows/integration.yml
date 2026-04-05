@@ -35,6 +35,9 @@ jobs:
       - name: Build Jig.framework
         run: cd packages/native && pnpm build:framework
 
+      - name: Check device dependencies
+        run: node packages/device/dist/cli.js check ios-ci
+
       - name: Download test app artifact
         uses: actions/download-artifact@v4
         with:
@@ -51,9 +54,7 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
       - name: Boot simulator
-        run: |
-          xcrun simctl boot "iPhone 16" 2>/dev/null || true
-          xcrun simctl bootstatus "iPhone 16" -b
+        run: node packages/device/dist/cli.js boot ios-ci --timeout 60000
 
       - name: Launch app with Jig
         run: node packages/cli/dist/index.js launch "$APP_PATH" --skip-verify
@@ -76,6 +77,10 @@ jobs:
               await client.disconnect();
             })();
           "
+
+      - name: Cleanup
+        if: always()
+        run: node packages/device/dist/cli.js kill --all
 
       - name: Upload artifacts
         if: always()
