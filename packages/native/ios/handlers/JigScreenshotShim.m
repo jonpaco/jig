@@ -2,6 +2,11 @@
 //
 // Screenshot handler shim — wraps UIKit screenshot capture as a C core jig_handler.
 
+// NOTE: This handler declares JIG_THREAD_MAIN but the C core dispatcher
+// executes handlers synchronously on the WebSocket thread. Main-thread
+// dispatch must be added at the server/platform layer before this handler
+// can be safely used. See: jig_handler.h thread_target documentation.
+
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 

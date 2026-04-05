@@ -6,27 +6,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#include "../core/jig_server.h"
-#include "../core/jig_dispatcher.h"
-#include "../core/jig_platform.h"
-#include "../core/jig_app_info.h"
-#include "../core/handlers/jig_handshake.h"
-#include "../core/middleware/jig_handshake_gate.h"
-#include "../core/middleware/jig_domain_guard.h"
-
-// Forward declare the screenshot handler create function (defined in JigScreenshotShim.m)
-extern jig_handler *jig_screenshot_handler_create(void);
+#include "JigBootstrap.h"
 
 static jig_server *_jigServer = NULL;
-
-// Platform ops: logging via NSLog
-static void ios_log(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    NSString *nsFmt = [NSString stringWithUTF8String:fmt];
-    NSLogv(nsFmt, args);
-    va_end(args);
-}
 
 __attribute__((constructor))
 static void JigStandaloneInit(void) {
@@ -38,45 +20,11 @@ static void JigStandaloneInit(void) {
                      ?: @"Unknown";
     NSString *bundleId = mainBundle.bundleIdentifier ?: @"unknown";
 
-    // 1. Set platform ops
-    jig_platform_ops ops = {
-        .screenshot = NULL,  // Screenshot handled by jig_handler, not platform op
-        .get_app_info = NULL,
-        .log = ios_log,
-    };
-    jig_platform_set_ops(&ops);
-
-    // 2. Create app info
-    jig_app_info *app_info = jig_app_info_create(
+    _jigServer = jig_bootstrap_server(
         [appName UTF8String],
         [bundleId UTF8String],
-        "ios",
         "unknown",
-        NULL
+        NULL,
+        4042
     );
-
-    // 3. Create handlers and middleware
-    jig_handler *handlers[] = {
-        jig_handshake_create(),
-        jig_screenshot_handler_create(),
-    };
-    jig_middleware middlewares[] = {
-        jig_handshake_gate_create(),
-        jig_domain_guard_create(NULL, 0),
-    };
-
-    // 4. Create dispatcher
-    jig_dispatcher_config *dispatcher = jig_dispatcher_create(
-        middlewares, 2,
-        handlers, 2,
-        NULL, 0
-    );
-
-    // 5. Create and start server on background thread
-    _jigServer = jig_server_create(4042, dispatcher, app_info);
-    dispatch_async(dispatch_queue_create("jig.server", NULL), ^{
-        jig_server_start(_jigServer);
-    });
-
-    NSLog(@"[Jig] Standalone server started on port 4042 for %@ (%@)", appName, bundleId);
 }
