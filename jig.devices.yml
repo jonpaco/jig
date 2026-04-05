@@ -1,0 +1,37 @@
+# Jig device profiles — used by jig-device for emulator/simulator management.
+# See: jig-planning/docs/superpowers/specs/2026-04-05-device-management.md
+devices:
+  android-ci:
+    platform: android
+    api: 34
+    arch: auto
+    image: google_apis
+    screen: 1080x2400
+    ram: 4096
+    headless: true
+
+  ios-ci:
+    platform: ios
+    runtime: "18.0"
+    device: "iPhone 16"
+    headless: true
+
+  ios-ci-17:
+    platform: ios
+    runtime: "21.0"
+    device: "iPhone 17"
+    headless: true
+
+  android-dev:
+    platform: android
+    api: 34
+    arch: auto
+    image: google_apis_playstore
+    ram: 4096
+    headless: false
+
+  ios-dev:
+    platform: ios
+    runtime: "18.0"
+    device: "iPhone 16"
+    headless: false
