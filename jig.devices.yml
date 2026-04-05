@@ -12,13 +12,13 @@ devices:
 
   ios-ci:
     platform: ios
-    runtime: "18.0"
+    runtime: latest
     device: "iPhone 16"
     headless: true
 
   ios-ci-17:
     platform: ios
-    runtime: "21.0"
+    runtime: latest
     device: "iPhone 17"
     headless: true
 
@@ -32,6 +32,6 @@ devices:
 
   ios-dev:
     platform: ios
-    runtime: "18.0"
+    runtime: latest
     device: "iPhone 16"
     headless: false
