@@ -5,6 +5,7 @@ const config: Config = {
     '<rootDir>/packages/protocol',
     '<rootDir>/packages/cli',
     '<rootDir>/packages/sdk',
+    '<rootDir>/packages/device',
   ],
 };
 
