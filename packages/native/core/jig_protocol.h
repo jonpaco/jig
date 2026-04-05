@@ -1,0 +1,7 @@
+#ifndef JIG_PROTOCOL_H
+#define JIG_PROTOCOL_H
+
+#define JIG_PROTOCOL_VERSION 1
+#define JIG_SERVER_VERSION "0.1.0"
+
+#endif /* JIG_PROTOCOL_H */
