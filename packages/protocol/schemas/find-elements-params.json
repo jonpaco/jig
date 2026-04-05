@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FindElementsParams",
+  "description": "Params for the jig.findElements command",
+  "type": "object",
+  "properties": {
+    "selector": {
+      "type": "object",
+      "description": "Selector to match against — see selector.json for full shape"
+    }
+  },
+  "required": ["selector"],
+  "additionalProperties": false
+}
