@@ -165,7 +165,13 @@ jobs:
       - name: Dump logcat on failure
         if: failure()
         timeout-minutes: 1
-        run: timeout 10 adb logcat -d 2>&1 | grep -i "jig\|libjig\|ClassNotFound\|FATAL\|crash" | tail -30 || echo "No logcat available"
+        run: |
+          echo "=== adb devices ==="
+          timeout 5 adb devices 2>&1 || true
+          echo "=== logcat (last 50 lines) ==="
+          timeout 10 adb logcat -d 2>&1 | tail -50 || echo "No logcat available"
+          echo "=== logcat Jig/libjig ==="
+          timeout 10 adb logcat -d 2>&1 | grep -i "jig\|habittracker" | tail -20 || true
 
       - name: Upload artifacts
         if: always()
