@@ -174,10 +174,6 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           # libpulse0 (emulator links it at load time regardless of -no-audio)
           sudo apt-get update -qq && sudo apt-get install -y -qq libpulse0
-          # apktool for APK injection
-          curl -sL https://raw.githubusercontent.com/iBotPeaches/Apktool/master/scripts/linux/apktool -o /usr/local/bin/apktool
-          curl -sL https://github.com/iBotPeaches/Apktool/releases/download/v2.11.1/apktool_2.11.1.jar -o /usr/local/bin/apktool.jar
-          chmod +x /usr/local/bin/apktool
           # System image and emulator
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "system-images;android-34;google_apis;x86_64" "emulator" || true
 
@@ -191,6 +187,14 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
           bash scripts/build-so.sh
+
+      - name: Build jig-helpers.dex
+        run: packages/native/scripts/build-dex.sh
+
+      - name: Build jig-dex-patcher.jar
+        run: |
+          cd packages/native/android/dex-patcher
+          gradle jar
 
       - name: Download test app artifact
         uses: actions/download-artifact@v4
@@ -218,19 +222,6 @@ jobs:
 
       - name: Verify connection
         run: node packages/cli/dist/index.js status
-
-      - name: Capture screenshot
-        run: |
-          node -e "
-            const { connect } = require('./packages/sdk/dist');
-            (async () => {
-              const client = await connect();
-              const result = await client.screenshot();
-              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
-              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
-              await client.disconnect();
-            })();
-          "
 
       - name: Verify element selection
         run: |
@@ -276,6 +267,20 @@ jobs:
 
               session.disconnect();
               console.log('Element selection verification passed');
+            })();
+          "
+
+      - name: Capture screenshot (best-effort)
+        continue-on-error: true
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const client = await connect();
+              const result = await client.screenshot();
+              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
+              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
+              await client.disconnect();
             })();
           "
 

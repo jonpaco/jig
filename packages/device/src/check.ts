@@ -156,7 +156,7 @@ export function buildAndroidChecks(
   }
   // Injection tools (warnings)
   checks.push(
-    { name: 'apktool' },
+    { name: 'java' },
     { name: 'zipalign' },
     { name: 'apksigner' },
     { name: 'aapt2' },
@@ -284,20 +284,21 @@ async function runAndroidChecks(profile: AndroidProfile): Promise<CheckResult> {
 /**
  * Check injection pipeline tools. These are warnings, not errors —
  * you can boot an emulator without them, but jig launch needs them
- * for APK repackaging.
+ * for APK injection (ZIP manipulation + DEX patching + signing).
  */
 async function checkInjectionTools(androidHome: string | undefined): Promise<CheckEntry[]> {
   const checks: CheckEntry[] = [];
 
-  // apktool (standalone binary, not part of Android SDK)
+  // java (needed to run jig-dex-patcher.jar)
   try {
-    const { stdout } = await execFileAsync('apktool', ['--version']);
-    checks.push({ name: 'apktool', passed: true, severity: 'warning', detail: stdout.trim() });
+    const { stdout } = await execFileAsync('java', ['--version']);
+    const version = stdout.split('\n')[0]?.trim() ?? 'unknown';
+    checks.push({ name: 'java', passed: true, severity: 'warning', detail: version });
   } catch {
     checks.push({
-      name: 'apktool', passed: false, severity: 'warning',
-      message: 'apktool not found (needed for APK injection)',
-      fix: 'brew install apktool\n    Or: https://apktool.org/docs/install',
+      name: 'java', passed: false, severity: 'warning',
+      message: 'java not found (needed for DEX patching during APK injection)',
+      fix: 'Install a JDK (e.g., brew install openjdk)',
     });
   }
 

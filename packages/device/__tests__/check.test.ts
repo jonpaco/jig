@@ -30,7 +30,7 @@ describe('buildAndroidChecks', () => {
       headless: true,
     });
     const names = checks.map((c) => c.name);
-    expect(names).toContain('apktool');
+    expect(names).toContain('java');
     expect(names).toContain('zipalign');
     expect(names).toContain('apksigner');
     expect(names).toContain('aapt2');
@@ -98,11 +98,11 @@ describe('formatCheckResult', () => {
       ok: true,
       checks: [
         { name: 'emulator', passed: true, severity: 'error', detail: 'installed' },
-        { name: 'apktool', passed: false, severity: 'warning', message: 'apktool not found', fix: 'brew install apktool' },
+        { name: 'java', passed: false, severity: 'warning', message: 'java not found', fix: 'brew install java' },
       ],
     };
     const output = formatCheckResult(result);
-    expect(output).toContain('⚠ apktool');
+    expect(output).toContain('⚠ java');
     expect(output).toContain('1 warning');
     expect(output).toContain('All checks passed');
   });
@@ -112,7 +112,7 @@ describe('formatCheckResult', () => {
       ok: true,
       checks: [
         { name: 'emulator', passed: true, severity: 'error', detail: 'ok' },
-        { name: 'apktool', passed: false, severity: 'warning', message: 'missing' },
+        { name: 'java', passed: false, severity: 'warning', message: 'missing' },
       ],
     };
     const output = formatCheckResult(result);

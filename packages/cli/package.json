@@ -14,9 +14,13 @@
     "@jig/device": "workspace:*",
     "@jig/protocol": "workspace:*",
     "@jig/sdk": "workspace:*",
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "yauzl": "^3.3.0",
+    "yazl": "^3.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "@types/yauzl": "^2.10.3",
+    "@types/yazl": "^3.3.0"
   }
 }

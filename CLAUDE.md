@@ -23,6 +23,18 @@ pnpm monorepo:
 | Example app | `examples/basic-app/` | Tier 1 test target — simple Expo app |
 | Docs | `docs/` | Protocol spec, getting started, CI guide |
 
+### Android Build Tools
+
+| Tool | Path | Build command | Output |
+|------|------|---------------|--------|
+| libjig.so | `scripts/build-so.sh` | `bash scripts/build-so.sh` | `packages/native/build/android/<abi>/libjig.so` |
+| jig-helpers.dex | `packages/native/scripts/build-dex.sh` | `pnpm build:dex` (in `@jig/native`) | `packages/native/build/dex/jig-helpers.dex` |
+| jig-dex-patcher.jar | `packages/native/android/dex-patcher/` | `pnpm build:dex-patcher` (in `@jig/native`) | `packages/native/android/dex-patcher/build/libs/jig-dex-patcher.jar` |
+
+- **build-dex.sh**: Compiles `packages/native/android/jni/*.java` → `.class` (javac) → `.dex` (d8). Requires `ANDROID_HOME`.
+- **dex-patcher**: Gradle project using dexlib2. Inserts `System.loadLibrary("jig")` into a DEX class's `<clinit>`. Used by the inject pipeline (`packages/cli/src/android/inject.ts`).
+- **zip.ts** (`packages/cli/src/android/zip.ts`): ZIP manipulation utilities for APK injection — add/replace/extract entries without apktool. Preserves original compression methods (critical: `resources.arsc` and `.so` must stay uncompressed).
+
 ## Conventions
 
 ### Protocol
@@ -46,10 +58,11 @@ pnpm monorepo:
 - Touch injection: `View.dispatchTouchEvent(MotionEvent)` on DecorView
 - WebSocket server: shared C core (libwebsockets), same as iOS
 - View hierarchy: recursive `ViewGroup.getChildAt()` traversal
-- Screenshots: `View.draw(Canvas)` via JNI on main thread
+- Screenshots: `PixelCopy` via `JigScreenshotHelper` JNI helper on main thread (reads from SurfaceFlinger, works on headless emulators)
 - Network interception: OkHttp interceptor via `OkHttpClientFactory`
 - testID maps to `contentDescription`
-- JNI helpers (`JigMainThreadRunner`, `JigActivityCallbacks`) are shipped as pre-written smali in `packages/native/android/smali/` — the inject pipeline copies them into APKs alongside `libjig.so`
+- JNI helpers (`JigMainThreadRunner`, `JigActivityCallbacks`, `JigScreenshotHelper`) are compiled from Java source in `packages/native/android/jni/*.java` to `jig-helpers.dex` via `d8`. The inject pipeline adds the DEX as a multidex entry alongside `libjig.so`
+- APK injection is apktool-free: direct ZIP manipulation + `jig-dex-patcher.jar` (dexlib2) for surgical `<clinit>` patching. Resources are never decoded or rebuilt
 
 ### TypeScript
 

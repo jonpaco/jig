@@ -2,12 +2,11 @@
  * APK injection pipeline for Jig.
  *
  * Required external tools:
- * - apktool: APK decode/rebuild (https://apktool.org/)
+ * - aapt2 (or aapt fallback): APK manifest inspection (Android SDK build-tools)
  * - zipalign: APK alignment (Android SDK build-tools)
  * - apksigner: APK signing (Android SDK build-tools)
- * - aapt: APK asset packaging/inspection (Android SDK build-tools)
  * - keytool: Java keystore management (JDK)
- * - adb: Android Debug Bridge (Android SDK platform-tools)
+ * - java: JVM for running the dex-patcher (JDK)
  */
 
 import { execFile } from 'child_process';
@@ -15,37 +14,46 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { listEntries, addEntries, extractEntry, replaceEntry } from './zip';
 
 const execFileAsync = promisify(execFile);
 
 export interface InjectOptions {
   apkPath: string;
-  libjigDir: string;   // directory containing per-ABI libjig.so (e.g., build/android/)
-  outputPath?: string;  // defaults to <apkName>-jig.apk next to original
+  libjigDir: string;        // directory containing per-ABI libjig.so (e.g., build/android/)
+  helpersDexPath: string;   // path to jig-helpers.dex
+  dexPatcherJarPath: string; // path to jig-dex-patcher.jar
+  outputPath?: string;       // defaults to <apkName>-jig.apk next to original
 }
 
 /**
- * Inject libjig.so into an APK and re-sign it.
+ * Inject libjig.so and jig-helpers.dex into an APK and re-sign it.
  *
  * Pipeline:
- *   1. apktool decode → temp dir
- *   2. Find main (launcher) activity from AndroidManifest.xml
- *   3. Copy libjig.so into lib/<abi>/ for each ABI present
- *   4. Patch main activity's smali to call System.loadLibrary("jig")
- *   5. apktool rebuild → unsigned APK
- *   6. zipalign
- *   7. apksigner with debug keystore
+ *   1. Parse manifest via aapt2 (fallback aapt) to find launcher activity and package name
+ *   2. Analyze existing APK ZIP entries to detect ABIs and count DEX files
+ *   3. Add libjig.so to lib/<abi>/ for each ABI present (or arm64-v8a default)
+ *   4. Add jig-helpers.dex as classesN+1.dex
+ *   5. Find which classesX.dex contains the launcher activity (via dex-patcher exit codes)
+ *   6. Extract that DEX, patch it via dex-patcher, replace it
+ *   7. zipalign + apksigner with debug keystore (v1+v2 signing)
  *
  * Returns the path to the signed, aligned APK.
  */
 export async function injectApk(options: InjectOptions): Promise<string> {
-  const { apkPath, libjigDir } = options;
+  const { apkPath, libjigDir, helpersDexPath, dexPatcherJarPath } = options;
 
   if (!fs.existsSync(apkPath)) {
     throw new Error(`APK not found at ${apkPath}`);
   }
   if (!fs.existsSync(libjigDir)) {
     throw new Error(`libjig directory not found at ${libjigDir}`);
+  }
+  if (!fs.existsSync(helpersDexPath)) {
+    throw new Error(`jig-helpers.dex not found at ${helpersDexPath}`);
+  }
+  if (!fs.existsSync(dexPatcherJarPath)) {
+    throw new Error(`jig-dex-patcher.jar not found at ${dexPatcherJarPath}`);
   }
 
   const apkBasename = path.basename(apkPath, '.apk');
@@ -55,42 +63,89 @@ export async function injectApk(options: InjectOptions): Promise<string> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jig-inject-'));
 
   try {
-    const decodedDir = path.join(tmpDir, 'decoded');
-    const rebuiltApk = path.join(tmpDir, 'rebuilt.apk');
-    const alignedApk = path.join(tmpDir, 'aligned.apk');
+    // 1. Parse manifest to find launcher activity
+    const { activityName } = await getPackageAndActivity(apkPath);
 
-    // 1. Decode APK
-    await execFileAsync('apktool', ['d', '-f', '-o', decodedDir, apkPath]);
+    // 2. Analyze existing ZIP entries for ABIs and DEX count
+    const entries = await listEntries(apkPath);
 
-    // 2. Find main activity
-    const manifestPath = path.join(decodedDir, 'AndroidManifest.xml');
-    const mainActivity = findMainActivity(
-      fs.readFileSync(manifestPath, 'utf-8'),
-    );
+    const abiSet = new Set<string>();
+    for (const entry of entries) {
+      const match = entry.match(/^lib\/([^/]+)\//);
+      if (match) {
+        abiSet.add(match[1]);
+      }
+    }
+    const targetAbis = abiSet.size > 0 ? [...abiSet] : ['arm64-v8a'];
 
-    // 3. Copy libjig.so into lib dirs
-    copyLibjig(decodedDir, libjigDir);
+    const dexEntries = entries
+      .filter((e) => /^classes\d*\.dex$/.test(e))
+      .sort();
+    const dexCount = dexEntries.length;
 
-    // 4. Patch smali
-    const smaliPath = resolveSmaliPath(decodedDir, mainActivity);
-    patchSmali(smaliPath);
+    // 3. Build new entries: libjig.so for each ABI
+    const newEntries: Record<string, Buffer> = {};
 
-    // 4b. Copy Jig helper smali classes into the APK
-    copyJigSmali(decodedDir, libjigDir);
-
-    // 5. Rebuild APK
-    // Try with --use-aapt2 first (needed for v2 with Material Design 3 $ filenames),
-    // fall back to plain build for v3+ which uses aapt2 by default.
-    try {
-      await execFileAsync('apktool', ['b', '--use-aapt2', '-o', rebuiltApk, decodedDir]);
-    } catch {
-      await execFileAsync('apktool', ['b', '-o', rebuiltApk, decodedDir]);
+    const builtAbis = fs.readdirSync(libjigDir).filter((name) => {
+      const soPath = path.join(libjigDir, name, 'libjig.so');
+      return fs.existsSync(soPath);
+    });
+    if (builtAbis.length === 0) {
+      throw new Error(`No libjig.so files found in ${libjigDir}`);
     }
 
-    // 6. Zipalign
-    await execFileAsync('zipalign', ['-f', '4', rebuiltApk, alignedApk]);
+    for (const abi of targetAbis) {
+      const srcSo = path.join(libjigDir, abi, 'libjig.so');
+      if (!fs.existsSync(srcSo)) {
+        console.warn(`Warning: no libjig.so built for ${abi}, skipping`);
+        continue;
+      }
+      newEntries[`lib/${abi}/libjig.so`] = fs.readFileSync(srcSo);
+    }
 
-    // 7. Sign with debug key
+    // 4. Add jig-helpers.dex as classesN+1.dex
+    const helpersDexName = `classes${dexCount + 1}.dex`;
+    newEntries[helpersDexName] = fs.readFileSync(helpersDexPath);
+
+    // Add new entries to the APK
+    const withEntriesApk = path.join(tmpDir, 'with-entries.apk');
+    await addEntries(apkPath, withEntriesApk, newEntries);
+
+    // 5. Find which DEX contains the launcher activity and patch it
+    const dexToPath = await findDexContainingClass(
+      withEntriesApk,
+      dexEntries,
+      activityName,
+      dexPatcherJarPath,
+      tmpDir,
+    );
+
+    // 6. Extract that DEX, patch it, replace it
+    const extractedDex = path.join(tmpDir, 'target.dex');
+    const patchedDex = path.join(tmpDir, 'patched.dex');
+
+    const dexData = await extractEntry(withEntriesApk, dexToPath);
+    fs.writeFileSync(extractedDex, dexData);
+
+    await execFileAsync('java', [
+      '-jar', dexPatcherJarPath,
+      extractedDex,
+      activityName,
+      patchedDex,
+    ]);
+
+    const patchedApk = path.join(tmpDir, 'patched.apk');
+    await replaceEntry(
+      withEntriesApk,
+      patchedApk,
+      dexToPath,
+      fs.readFileSync(patchedDex),
+    );
+
+    // 7. zipalign + apksigner
+    const alignedApk = path.join(tmpDir, 'aligned.apk');
+    await execFileAsync('zipalign', ['-f', '4', patchedApk, alignedApk]);
+
     const keystore = await findOrCreateDebugKeystore();
     await execFileAsync('apksigner', [
       'sign',
@@ -98,223 +153,101 @@ export async function injectApk(options: InjectOptions): Promise<string> {
       '--ks-pass', 'pass:android',
       '--ks-key-alias', 'androiddebugkey',
       '--key-pass', 'pass:android',
+      '--v1-signing-enabled', 'true',
+      '--v2-signing-enabled', 'true',
       '--out', outputPath,
       alignedApk,
     ]);
 
     return outputPath;
   } finally {
-    // Clean up temp dir
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
 /**
- * Copy Jig helper smali classes (JigMainThreadRunner, JigActivityCallbacks)
- * into the decoded APK's smali directory. These are needed by the native
- * JNI code in libjig.so.
- *
- * The smali files are shipped alongside libjig.so in the native package
- * at ../../native/android/smali/jig/*.smali (relative to the libjigDir's
- * grandparent, which is packages/native/).
+ * Extract package name and launcher activity from an APK using aapt2 (with aapt fallback).
  */
-function copyJigSmali(decodedDir: string, libjigDir: string): void {
-  // libjigDir is packages/native/build/android — smali is at packages/native/android/smali
-  const nativeRoot = path.resolve(libjigDir, '..', '..');
-  const smaliSrcDir = path.join(nativeRoot, 'android', 'smali', 'jig');
+export async function getPackageAndActivity(apkPath: string): Promise<{
+  packageName: string;
+  activityName: string;
+}> {
+  let stdout: string;
 
-  if (!fs.existsSync(smaliSrcDir)) {
-    console.warn('Warning: Jig smali helpers not found, skipping Java class injection');
-    return;
+  try {
+    const result = await execFileAsync('aapt2', ['dump', 'badging', apkPath]);
+    stdout = result.stdout;
+  } catch {
+    // Fallback to aapt
+    const result = await execFileAsync('aapt', ['dump', 'badging', apkPath]);
+    stdout = result.stdout;
   }
 
-  // Find the first smali directory in the decoded APK (usually just "smali")
-  const smaliDirs = fs.readdirSync(decodedDir).filter((name) =>
-    name.startsWith('smali'),
-  );
-  const targetSmaliDir = smaliDirs[0] || 'smali';
-
-  const dstDir = path.join(decodedDir, targetSmaliDir, 'jig');
-  fs.mkdirSync(dstDir, { recursive: true });
-
-  const smaliFiles = fs.readdirSync(smaliSrcDir).filter((f) => f.endsWith('.smali'));
-  for (const file of smaliFiles) {
-    fs.copyFileSync(path.join(smaliSrcDir, file), path.join(dstDir, file));
+  const packageMatch = stdout.match(/package:\s*name='([^']+)'/);
+  if (!packageMatch) {
+    throw new Error('Could not extract package name from APK');
   }
+
+  const activityMatch = stdout.match(/launchable-activity:\s*name='([^']+)'/);
+  if (!activityMatch) {
+    throw new Error('Could not extract launchable activity from APK');
+  }
+
+  return {
+    packageName: packageMatch[1],
+    activityName: activityMatch[1],
+  };
 }
 
 /**
- * Parse AndroidManifest.xml to find the launcher activity's fully-qualified
- * class name. Looks for an activity with MAIN + LAUNCHER intent filter.
+ * Find which DEX file in the APK contains the given class.
+ *
+ * Tries the dex-patcher on each classesN.dex. Exit code 2 from the patcher
+ * means "class not found" — try the next DEX. Any other non-zero exit is
+ * a real error and is thrown. When a DEX is patched successfully (exit 0),
+ * the dummy output is cleaned up and the entry name is returned.
  */
-export function findMainActivity(manifestXml: string): string {
-  // apktool decodes to plain XML, so we can regex-parse the intent filters.
-  // We look for an <activity> block that contains both:
-  //   action android.intent.action.MAIN
-  //   category android.intent.category.LAUNCHER
+async function findDexContainingClass(
+  apkPath: string,
+  dexEntries: string[],
+  className: string,
+  dexPatcherJarPath: string,
+  tmpDir: string,
+): Promise<string> {
+  for (const dexEntry of dexEntries) {
+    const probeDex = path.join(tmpDir, `probe-${dexEntry}`);
+    const probeOut = path.join(tmpDir, `probe-out-${dexEntry}`);
 
-  // Split on <activity to get individual activity blocks
-  const activityBlocks = manifestXml.split(/<activity\b/);
+    const dexData = await extractEntry(apkPath, dexEntry);
+    fs.writeFileSync(probeDex, dexData);
 
-  for (const block of activityBlocks) {
-    // Check for launcher intent
-    const hasMain = /android\.intent\.action\.MAIN/.test(block);
-    const hasLauncher = /android\.intent\.category\.LAUNCHER/.test(block);
-
-    if (hasMain && hasLauncher) {
-      // Extract android:name from this activity tag
-      const nameMatch = block.match(/android:name="([^"]+)"/);
-      if (nameMatch) {
-        return nameMatch[1];
+    try {
+      await execFileAsync('java', [
+        '-jar', dexPatcherJarPath,
+        probeDex,
+        className,
+        probeOut,
+      ]);
+      // Success — this DEX contains the class. Clean up the dummy output.
+      try { fs.unlinkSync(probeOut); } catch { /* ignore */ }
+      try { fs.unlinkSync(probeDex); } catch { /* ignore */ }
+      return dexEntry;
+    } catch (err: unknown) {
+      // Exit code 2 means class not found — try next DEX
+      const exitCode = (err as { code?: number }).code;
+      if (exitCode === 2) {
+        try { fs.unlinkSync(probeDex); } catch { /* ignore */ }
+        continue;
       }
+      // Any other error is unexpected
+      throw err;
     }
   }
 
   throw new Error(
-    'Could not find launcher activity in AndroidManifest.xml. ' +
-    'Expected an activity with MAIN + LAUNCHER intent filter.',
+    `Could not find class ${className} in any DEX file. ` +
+    `Searched: ${dexEntries.join(', ')}`,
   );
-}
-
-/**
- * Copy libjig.so into the decoded APK's lib directories.
- * For each ABI directory already present in the APK, copies the matching
- * libjig.so from libjigDir. If no lib/ directory exists, creates arm64-v8a.
- */
-function copyLibjig(decodedDir: string, libjigDir: string): void {
-  const libDir = path.join(decodedDir, 'lib');
-
-  // Get list of ABIs we have built
-  const builtAbis = fs.readdirSync(libjigDir).filter((name) => {
-    const soPath = path.join(libjigDir, name, 'libjig.so');
-    return fs.existsSync(soPath);
-  });
-
-  if (builtAbis.length === 0) {
-    throw new Error(`No libjig.so files found in ${libjigDir}`);
-  }
-
-  // Determine which ABIs to inject into
-  let targetAbis: string[];
-  if (fs.existsSync(libDir)) {
-    // Match existing ABIs in the APK
-    targetAbis = fs.readdirSync(libDir).filter((name) =>
-      fs.statSync(path.join(libDir, name)).isDirectory(),
-    );
-  } else {
-    // No native libs yet — default to arm64-v8a
-    targetAbis = ['arm64-v8a'];
-  }
-
-  for (const abi of targetAbis) {
-    const srcSo = path.join(libjigDir, abi, 'libjig.so');
-    if (!fs.existsSync(srcSo)) {
-      console.warn(`Warning: no libjig.so built for ${abi}, skipping`);
-      continue;
-    }
-
-    const dstDir = path.join(libDir, abi);
-    fs.mkdirSync(dstDir, { recursive: true });
-    fs.copyFileSync(srcSo, path.join(dstDir, 'libjig.so'));
-  }
-}
-
-/**
- * Resolve the smali file path for a given activity class name.
- * Handles apktool's smali directory naming (smali, smali_classes2, etc.)
- * and dotted vs slashed class names.
- */
-export function resolveSmaliPath(decodedDir: string, activityName: string): string {
-  // Convert com.example.MainActivity to com/example/MainActivity.smali
-  const relativePath = activityName.replace(/\./g, '/') + '.smali';
-
-  // apktool can put smali in smali/, smali_classes2/, etc.
-  const smaliDirs = fs.readdirSync(decodedDir).filter((name) =>
-    name.startsWith('smali'),
-  );
-
-  for (const dir of smaliDirs) {
-    const fullPath = path.join(decodedDir, dir, relativePath);
-    if (fs.existsSync(fullPath)) {
-      return fullPath;
-    }
-  }
-
-  throw new Error(
-    `Smali file not found for ${activityName}. Searched in: ` +
-    smaliDirs.map((d) => path.join(decodedDir, d, relativePath)).join(', '),
-  );
-}
-
-/**
- * Patch a smali file to add System.loadLibrary("jig") to its <clinit>.
- *
- * If a <clinit> method exists, the load call is inserted at the start
- * (after .locals/.registers). If no <clinit> exists, one is created.
- */
-export function patchSmali(smaliPath: string): void {
-  const LOAD_INSTRUCTION =
-    '    const-string v0, "jig"\n' +
-    '    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V';
-
-  let content = fs.readFileSync(smaliPath, 'utf-8');
-
-  // Check if already patched
-  if (content.includes('const-string v0, "jig"')) {
-    return;
-  }
-
-  const clinitIndex = content.indexOf('.method static constructor <clinit>()V');
-
-  if (clinitIndex !== -1) {
-    // <clinit> exists — insert after .locals or .registers line
-    const afterClinit = content.substring(clinitIndex);
-    const localsMatch = afterClinit.match(/(\s*\.(?:locals|registers)\s+)(\d+)/);
-
-    if (localsMatch) {
-      const localsLine = localsMatch[0];
-      const currentCount = parseInt(localsMatch[2], 10);
-      const newCount = Math.max(currentCount, 1); // need at least 1 register
-
-      // Replace .locals count and inject load after it
-      const insertPoint = clinitIndex + afterClinit.indexOf(localsLine) + localsLine.length;
-      const updatedLocalsLine = localsLine.replace(/\d+/, String(newCount));
-
-      content =
-        content.substring(0, clinitIndex + afterClinit.indexOf(localsLine)) +
-        updatedLocalsLine + '\n\n' +
-        LOAD_INSTRUCTION + '\n' +
-        content.substring(insertPoint);
-    } else {
-      // No .locals line — insert right after the method signature line
-      const endOfMethodLine = content.indexOf('\n', clinitIndex);
-      content =
-        content.substring(0, endOfMethodLine + 1) +
-        '    .locals 1\n\n' +
-        LOAD_INSTRUCTION + '\n' +
-        content.substring(endOfMethodLine + 1);
-    }
-  } else {
-    // No <clinit> — create one before the first .method or at end of file
-    const clinitBlock =
-      '\n.method static constructor <clinit>()V\n' +
-      '    .locals 1\n\n' +
-      LOAD_INSTRUCTION + '\n\n' +
-      '    return-void\n' +
-      '.end method\n';
-
-    const firstMethodIndex = content.indexOf('\n.method ');
-    if (firstMethodIndex !== -1) {
-      content =
-        content.substring(0, firstMethodIndex) +
-        clinitBlock +
-        content.substring(firstMethodIndex);
-    } else {
-      content += clinitBlock;
-    }
-  }
-
-  fs.writeFileSync(smaliPath, content, 'utf-8');
 }
 
 /**

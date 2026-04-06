@@ -1,0 +1,34 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+dependencies {
+    implementation 'com.android.tools.smali:smali-dexlib2:3.0.8'
+}
+
+application {
+    mainClass = 'jig.DexPatcher'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'jig.DexPatcher'
+    }
+    // Fat JAR — bundle all dependencies
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    archiveFileName = 'jig-dex-patcher.jar'
+}
