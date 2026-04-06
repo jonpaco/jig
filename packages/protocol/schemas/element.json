@@ -24,6 +24,13 @@
       "type": "string",
       "description": "React component name (from fiber tree)"
     },
+    "props": {
+      "type": "object",
+      "description": "Serializable top-level props of the React component. Only present when the selector included a props field.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
     "frame": {
       "type": "object",
       "description": "Screen coordinates and dimensions",
