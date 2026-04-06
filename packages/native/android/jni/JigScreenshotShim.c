@@ -169,15 +169,40 @@ static cJSON *screenshot_handle(jig_handler *self, cJSON *params,
     jobject bitmap = (*env)->CallStaticObjectMethod(env, s_bitmap_class,
         s_bitmap_create, width, height, config);
 
-    /* Capture via View.draw(Canvas) — synchronous, works on main thread */
-    jclass canvas_class = (*env)->FindClass(env, "android/graphics/Canvas");
-    jmethodID canvas_init = (*env)->GetMethodID(env, canvas_class, "<init>",
-        "(Landroid/graphics/Bitmap;)V");
-    jobject canvas = (*env)->NewObject(env, canvas_class, canvas_init, bitmap);
+    /* Capture via PixelCopy — reads from the HW-accelerated surface compositor.
+     * JigScreenshotHelper.capture() wraps PixelCopy.request() with a
+     * CountDownLatch, blocking until the copy completes (5s timeout).
+     * Safe to block the main thread here — PixelCopy reads from SurfaceFlinger. */
+    jclass helper_class = (*env)->FindClass(env, "jig/JigScreenshotHelper");
+    if (!helper_class) {
+        (*env)->CallVoidMethod(env, bitmap, s_bitmap_recycle);
+        (*env)->DeleteLocalRef(env, activity);
+        if (attached) (*jvm)->DetachCurrentThread(jvm);
+        *err = jig_error_internal("JigScreenshotHelper class not found");
+        return NULL;
+    }
+    jmethodID capture_method = (*env)->GetStaticMethodID(env, helper_class,
+        "capture", "(Landroid/view/Window;Landroid/graphics/Bitmap;)I");
+    if (!capture_method) {
+        (*env)->CallVoidMethod(env, bitmap, s_bitmap_recycle);
+        (*env)->DeleteLocalRef(env, activity);
+        if (attached) (*jvm)->DetachCurrentThread(jvm);
+        *err = jig_error_internal("JigScreenshotHelper.capture method not found");
+        return NULL;
+    }
 
-    jmethodID drawMethod = (*env)->GetMethodID(env,
-        (*env)->GetObjectClass(env, decorView), "draw", "(Landroid/graphics/Canvas;)V");
-    (*env)->CallVoidMethod(env, decorView, drawMethod, canvas);
+    jint copy_result = (*env)->CallStaticIntMethod(env, helper_class,
+        capture_method, window, bitmap);
+
+    if (copy_result != 0) {
+        (*env)->CallVoidMethod(env, bitmap, s_bitmap_recycle);
+        (*env)->DeleteLocalRef(env, activity);
+        if (attached) (*jvm)->DetachCurrentThread(jvm);
+        char msg[64];
+        snprintf(msg, sizeof(msg), "PixelCopy failed with code %d", (int)copy_result);
+        *err = jig_error_internal(msg);
+        return NULL;
+    }
 
     /* Compress to JPEG or PNG */
     jobject compress_format;
