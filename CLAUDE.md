@@ -23,6 +23,18 @@ pnpm monorepo:
 | Example app | `examples/basic-app/` | Tier 1 test target — simple Expo app |
 | Docs | `docs/` | Protocol spec, getting started, CI guide |
 
+### Android Build Tools
+
+| Tool | Path | Build command | Output |
+|------|------|---------------|--------|
+| libjig.so | `scripts/build-so.sh` | `bash scripts/build-so.sh` | `packages/native/build/android/<abi>/libjig.so` |
+| jig-helpers.dex | `packages/native/scripts/build-dex.sh` | `pnpm build:dex` (in `@jig/native`) | `packages/native/build/dex/jig-helpers.dex` |
+| jig-dex-patcher.jar | `packages/native/android/dex-patcher/` | `pnpm build:dex-patcher` (in `@jig/native`) | `packages/native/android/dex-patcher/build/libs/jig-dex-patcher.jar` |
+
+- **build-dex.sh**: Compiles `packages/native/android/jni/*.java` → `.class` (javac) → `.dex` (d8). Requires `ANDROID_HOME`.
+- **dex-patcher**: Gradle project using dexlib2. Inserts `System.loadLibrary("jig")` into a DEX class's `<clinit>`. Used by the inject pipeline (`packages/cli/src/android/inject.ts`).
+- **zip.ts** (`packages/cli/src/android/zip.ts`): ZIP manipulation utilities for APK injection — add/replace/extract entries without apktool. Preserves original compression methods (critical: `resources.arsc` and `.so` must stay uncompressed).
+
 ## Conventions
 
 ### Protocol
