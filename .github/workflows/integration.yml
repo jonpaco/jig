@@ -205,6 +205,9 @@ jobs:
           APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
           echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
 
+      - name: Push fiber walker JS
+        run: adb push packages/native/core/js/fiber-walker.js /data/local/tmp/jig-fiber-walker.js
+
       - name: Launch app with Jig
         run: |
           export PATH="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1):$PATH"
