@@ -56,8 +56,7 @@ JAVA_FILES=(
 )
 
 echo "Compiling Java sources..."
-javac -source 11 -target 11 \
-    -bootclasspath "$ANDROID_JAR" \
+javac --release 11 \
     -classpath "$ANDROID_JAR" \
     -d "$TMP_DIR" \
     "${JAVA_FILES[@]}"
