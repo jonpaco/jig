@@ -2,9 +2,16 @@ import * as yauzl from 'yauzl';
 import * as yazl from 'yazl';
 import fs from 'fs';
 
-/** Returns true if the entry should be stored without compression (e.g. native libraries). */
+/**
+ * Returns true if the entry should be stored without compression.
+ * Android requires resources.arsc and native libs to be uncompressed and aligned.
+ */
 function shouldStore(entryName: string): boolean {
-  return entryName.endsWith('.so');
+  return (
+    entryName.endsWith('.so') ||
+    entryName === 'resources.arsc' ||
+    entryName.endsWith('.arsc')
+  );
 }
 
 /** Collect all entry names from a ZIP file. */
@@ -53,23 +60,31 @@ export function extractEntry(zipPath: string, entryName: string): Promise<Buffer
   });
 }
 
-/** Read all entries from a ZIP as an ordered list of { name, data } pairs. */
-function readAllEntries(zipPath: string): Promise<Array<{ name: string; data: Buffer }>> {
+interface ZipEntry {
+  name: string;
+  data: Buffer;
+  compressed: boolean;  // true if the original entry was compressed
+}
+
+/** Read all entries from a ZIP, preserving original compression info. */
+function readAllEntries(zipPath: string): Promise<ZipEntry[]> {
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
       if (err) return reject(err);
 
-      const results: Array<{ name: string; data: Buffer }> = [];
+      const results: ZipEntry[] = [];
 
       const readNext = () => zipfile.readEntry();
 
       zipfile.on('entry', (entry: yauzl.Entry) => {
+        // compressionMethod 0 = stored (uncompressed), 8 = deflate
+        const compressed = entry.compressionMethod !== 0;
         zipfile.openReadStream(entry, (streamErr, readStream) => {
           if (streamErr) return reject(streamErr);
           const chunks: Buffer[] = [];
           readStream.on('data', (chunk: Buffer) => chunks.push(chunk));
           readStream.on('end', () => {
-            results.push({ name: entry.fileName, data: Buffer.concat(chunks) });
+            results.push({ name: entry.fileName, data: Buffer.concat(chunks), compressed });
             readNext();
           });
           readStream.on('error', reject);
@@ -87,7 +102,7 @@ function readAllEntries(zipPath: string): Promise<Array<{ name: string; data: Bu
 /** Write an ordered list of entries to a ZIP file at outputPath. */
 function writeZip(
   outputPath: string,
-  entries: Array<{ name: string; data: Buffer }>,
+  entries: ZipEntry[],
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const zip = new yazl.ZipFile();
@@ -97,8 +112,9 @@ function writeZip(
     out.on('error', reject);
     zip.outputStream.on('error', reject);
 
-    for (const { name, data } of entries) {
-      zip.addBuffer(data, name, { compress: !shouldStore(name) });
+    for (const { name, data, compressed } of entries) {
+      // Preserve original compression; also force-store files Android requires uncompressed
+      zip.addBuffer(data, name, { compress: compressed && !shouldStore(name) });
     }
     zip.end();
   });
@@ -114,7 +130,11 @@ export async function addEntries(
   newEntries: Record<string, Buffer>,
 ): Promise<void> {
   const existing = await readAllEntries(inputPath);
-  const added = Object.entries(newEntries).map(([name, data]) => ({ name, data }));
+  const added: ZipEntry[] = Object.entries(newEntries).map(([name, data]) => ({
+    name,
+    data,
+    compressed: !shouldStore(name),
+  }));
   await writeZip(outputPath, [...existing, ...added]);
 }
 
@@ -134,7 +154,7 @@ export async function replaceEntry(
     throw new Error(`Entry not found: ${entryName}`);
   }
   const updated = existing.map(e =>
-    e.name === entryName ? { name: e.name, data: newContent } : e,
+    e.name === entryName ? { ...e, data: newContent } : e,
   );
   await writeZip(outputPath, updated);
 }
