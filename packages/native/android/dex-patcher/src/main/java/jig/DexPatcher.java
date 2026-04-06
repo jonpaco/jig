@@ -6,6 +6,7 @@ import com.android.tools.smali.dexlib2.Opcode;
 import com.android.tools.smali.dexlib2.Opcodes;
 import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
 import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.Field;
 import com.android.tools.smali.dexlib2.iface.Method;
 import com.android.tools.smali.dexlib2.iface.MethodImplementation;
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
@@ -133,6 +134,17 @@ public class DexPatcher {
             directMethods.add(createClinit());
         }
 
+        // Split fields into static and instance
+        List<Field> staticFields = new ArrayList<>();
+        List<Field> instanceFields = new ArrayList<>();
+        for (Field field : classDef.getFields()) {
+            if (AccessFlags.STATIC.isSet(field.getAccessFlags())) {
+                staticFields.add(field);
+            } else {
+                instanceFields.add(field);
+            }
+        }
+
         return new ImmutableClassDef(
                 classDef.getType(),
                 classDef.getAccessFlags(),
@@ -140,7 +152,8 @@ public class DexPatcher {
                 classDef.getInterfaces(),
                 classDef.getSourceFile(),
                 classDef.getAnnotations(),
-                classDef.getFields(),
+                staticFields,
+                instanceFields,
                 directMethods,
                 virtualMethods
         );

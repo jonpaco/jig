@@ -194,7 +194,7 @@ jobs:
       - name: Build jig-dex-patcher.jar
         run: |
           cd packages/native/android/dex-patcher
-          gradle jar
+          ./gradlew jar
 
       - name: Download test app artifact
         uses: actions/download-artifact@v4
