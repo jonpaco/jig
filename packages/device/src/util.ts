@@ -32,10 +32,11 @@ export async function execFileAsync(
     }
     debug(`  exit: 0 (${ms}ms)`);
     return { stdout: String(result.stdout), stderr: String(result.stderr) };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const ms = Date.now() - start;
-    debug(`  exit: ${err.code || 'error'} (${ms}ms)`);
-    if (err.stderr) debug(`  stderr: ${String(err.stderr).trim().slice(0, 500)}`);
+    const execErr = err as { code?: number | string; stderr?: string };
+    debug(`  exit: ${execErr.code || 'error'} (${ms}ms)`);
+    if (execErr.stderr) debug(`  stderr: ${String(execErr.stderr).trim().slice(0, 500)}`);
     throw err;
   }
 }

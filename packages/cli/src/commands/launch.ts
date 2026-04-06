@@ -1,11 +1,8 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { resolveFramework, verifyBinaryIntegrity } from '../framework';
 import { launchAndroid } from '../android/launch';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '@jig/device';
 
 export interface LaunchOptions {
   appPath: string;
@@ -61,27 +58,6 @@ export function buildLaunchEnv(frameworkBinaryPath: string): Record<string, stri
   return {
     SIMCTL_CHILD_DYLD_INSERT_LIBRARIES: frameworkBinaryPath,
   };
-}
-
-/**
- * Find the UDID of a booted simulator.
- */
-async function findBootedSimulator(): Promise<string> {
-  const { stdout } = await execFileAsync('xcrun', [
-    'simctl', 'list', 'devices', 'booted', '-j',
-  ]);
-  const data = JSON.parse(stdout);
-  for (const runtime of Object.values(data.devices) as any[][]) {
-    for (const device of runtime) {
-      if (device.state === 'Booted') {
-        return device.udid;
-      }
-    }
-  }
-  throw new Error(
-    'No booted iOS simulator found. Boot one with:\n' +
-    '  xcrun simctl boot "iPhone 16"'
-  );
 }
 
 /**
@@ -162,7 +138,15 @@ export async function launch(options: LaunchOptions): Promise<string> {
   const bundleId = await extractBundleId(appPath);
 
   // Find booted simulator
-  const udid = await findBootedSimulator();
+  const { getBootedSimulators } = await import('@jig/device/dist/ios/simulator');
+  const bootedUdids = await getBootedSimulators();
+  if (bootedUdids.length === 0) {
+    throw new Error(
+      'No booted iOS simulator found. Boot one with:\n' +
+      '  xcrun simctl boot "iPhone 16"'
+    );
+  }
+  const udid = bootedUdids[0];
 
   // Install app
   await execFileAsync('xcrun', ['simctl', 'install', udid, appPath]);

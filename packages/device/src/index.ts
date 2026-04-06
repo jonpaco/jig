@@ -17,6 +17,7 @@ import { bootAndroid, killAndroid, getConnectedDevices } from './android/emulato
 import { resolveAbi } from './android/sdk';
 import { registerDevice, unregisterDevice, listActiveDevices, findActiveDevice } from './active';
 import { debug, info, setVerbose } from './log';
+import { execFileAsync, sleep } from './util';
 
 export {
   // Logging
@@ -41,6 +42,9 @@ export {
   // Active tracking
   listActiveDevices,
   findActiveDevice,
+  // Utilities
+  execFileAsync,
+  sleep,
 };
 
 const DEFAULT_MANIFEST_NAME = 'jig.devices.yml';

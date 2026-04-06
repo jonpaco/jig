@@ -9,14 +9,11 @@
  * - java: JVM for running the dex-patcher (JDK)
  */
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { listEntries, addEntries, extractEntry, replaceEntry } from './zip';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '@jig/device';
 
 export interface InjectOptions {
   apkPath: string;

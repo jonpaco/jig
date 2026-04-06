@@ -1,15 +1,12 @@
 // Required external tools: adb (Android SDK platform-tools),
 // plus all tools listed in inject.ts (aapt2, zipalign, apksigner, keytool, java).
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import path from 'path';
 import { injectApk, getPackageAndActivity } from './inject';
 import { resolveLibjigDir, resolveHelpersDex, resolveDexPatcher } from './resolve';
 import { ensureDevice } from './emulator';
+import { execFileAsync } from '@jig/device';
 import fs from 'fs';
-
-const execFileAsync = promisify(execFile);
 
 export interface AndroidLaunchOptions {
   apkPath: string;
