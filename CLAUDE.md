@@ -13,15 +13,12 @@ pnpm monorepo:
 | `@jig/protocol` | `packages/protocol/` | JSON Schema spec + generated TypeScript types |
 | `@jig/native` | `packages/native/` | Native source (build-only) — server, touch injection, view walking |
 | `@jig/sdk` | `packages/sdk/` | TypeScript client — commands, events, element selection |
-| `@jig/jest` | `packages/jest/` | Jest preset — setup/teardown, matchers |
 | `@jig/cli` | `packages/cli/` | CLI — `jig launch`, `jig status`, `jig wait`, `jig report` |
 | `@jig/device` | `packages/device/` | Device management — deterministic emulator & simulator lifecycle |
-| `@jig/mcp` | `packages/mcp/` | MCP server — exposes Jig as tools for AI agents |
 
 | Other | Path | Purpose |
 |-------|------|---------|
-| Example app | `examples/basic-app/` | Tier 1 test target — simple Expo app |
-| Docs | `docs/` | Protocol spec, getting started, CI guide |
+| Docs | `docs/` | Device management guide |
 
 ### Android Build Tools
 
@@ -85,7 +82,7 @@ pnpm monorepo:
 ### Testing
 
 - TDD: write failing test first, then implement
-- Test against `examples/basic-app/` for fast development loop
+- Test against Habit Tracker (`jonpaco/open-source-habit-tracker-app`) for fast development loop
 - Test against Bluesky Social and Artsy Eigen for production validation
 
 ## Branching

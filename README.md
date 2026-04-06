@@ -10,8 +10,8 @@ App Process                          External Client
 ┌────────────────────────┐           ┌──────────────────────┐
 │  @jig/native           │           │  @jig/sdk   → tests  │
 │  ├── WebSocket :4042   │◄─────────►│  @jig/cli   → shell  │
-│  ├── Touch injector    │  JSON-RPC │  @jig/mcp   → AI     │
-│  ├── View walker       │           └──────────────────────┘
+│  ├── Touch injector    │  JSON-RPC └──────────────────────┘
+│  ├── View walker       │
 │  └── Screenshot        │
 └────────────────────────┘
 ```
@@ -27,9 +27,8 @@ Jig moves instrumentation **inside the app process**. Instead of coordinating be
 | `@jig/protocol` | JSON Schema spec + generated TypeScript types for the wire protocol |
 | `@jig/native` | React Native module — WebSocket server, touch injection, view walking, screenshots |
 | `@jig/sdk` | TypeScript client — connect, send commands, subscribe to events |
-| `@jig/jest` | Jest preset — setup/teardown, custom matchers |
-| `@jig/cli` | CLI — `jig status`, `jig wait`, `jig report` |
-| `@jig/mcp` | MCP server — exposes Jig as tools for AI agents |
+| `@jig/cli` | CLI — `jig status`, `jig wait`, `jig launch` |
+| `@jig/device` | Device management — deterministic emulator & simulator lifecycle |
 
 ## Quick Start
 
@@ -60,7 +59,7 @@ npx jig status
 ### Write a Test
 
 ```bash
-npm install -D @jig/sdk @jig/jest
+npm install -D @jig/sdk
 ```
 
 ```typescript
@@ -79,21 +78,6 @@ describe('habit tracker', () => {
   });
 });
 ```
-
-### AI Agent (MCP)
-
-```json
-{
-  "mcpServers": {
-    "jig": {
-      "command": "jig-mcp",
-      "args": ["--port", "4042"]
-    }
-  }
-}
-```
-
-Ask Claude Code to "create a new habit called Morning Run" — it connects, taps, types, and verifies.
 
 ## How It Works
 
