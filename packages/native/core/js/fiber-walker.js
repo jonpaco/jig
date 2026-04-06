@@ -18,26 +18,58 @@
     return null;
   }
 
-  function walkFiber(fiber, result) {
-    if (!fiber) return;
-    if (fiber.tag === 5 && fiber.stateNode) {
-      result.push({
-        reactTag: fiber.stateNode._nativeTag,
-        component: getComponentName(fiber)
-      });
+  function extractProps(fiber) {
+    var props = fiber.memoizedProps;
+    if (!props || typeof props !== 'object') return null;
+    var result = {};
+    var hasAny = false;
+    for (var key in props) {
+      var val = props[key];
+      var t = typeof val;
+      if (t === 'string' || t === 'number' || t === 'boolean' || val === null) {
+        result[key] = val;
+        hasAny = true;
+      }
     }
-    walkFiber(fiber.child, result);
-    walkFiber(fiber.sibling, result);
+    return hasAny ? result : null;
   }
 
-  function doWalk() {
+  function walkFiber(fiber, result, includeProps) {
+    if (!fiber) return;
+    if (fiber.tag === 5 && fiber.stateNode) {
+      var entry = {
+        reactTag: fiber.stateNode._nativeTag,
+        component: getComponentName(fiber)
+      };
+      if (includeProps) {
+        var parent = fiber.return;
+        while (parent) {
+          if (typeof parent.type === 'function' || typeof parent.type === 'object') {
+            var name = parent.type.displayName || parent.type.name;
+            if (name && name !== 'View' && name !== 'RCTView' &&
+                name !== 'Text' && name !== 'RCTText') {
+              var props = extractProps(parent);
+              if (props) entry.props = props;
+              break;
+            }
+          }
+          parent = parent.return;
+        }
+      }
+      result.push(entry);
+    }
+    walkFiber(fiber.child, result, includeProps);
+    walkFiber(fiber.sibling, result, includeProps);
+  }
+
+  function doWalk(includeProps) {
     var hook = global.__REACT_DEVTOOLS_GLOBAL_HOOK__;
     var roots = hook && hook.getFiberRoots ? hook.getFiberRoots(1) : null;
     if (!roots || roots.size === 0) return [];
 
     var result = [];
     roots.forEach(function(root) {
-      walkFiber(root.current, result);
+      walkFiber(root.current, result, includeProps);
     });
     return result;
   }
@@ -92,7 +124,8 @@
       }
 
       if (msg.method === 'jig.internal.walkFibers') {
-        var fibers = doWalk();
+        var includeProps = msg.params && msg.params.includeProps === true;
+        var fibers = doWalk(includeProps);
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
           method: 'jig.internal.fiberData',
