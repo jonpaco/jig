@@ -72,7 +72,7 @@ static cJSON *query_elements(jig_jsbridge *bridge) {
         (*jvm)->DetachCurrentThread(jvm);
     }
 
-    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS);
+    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS, false);
     if (fibers) {
         merge_fiber_data(elements, fibers);
         cJSON_Delete(fibers);

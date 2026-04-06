@@ -1,6 +1,7 @@
 #include "jig_jsbridge.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <time.h>
 
@@ -71,7 +72,7 @@ jig_handler **jig_jsbridge_get_handlers(jig_jsbridge *bridge) {
     return bridge->handlers;
 }
 
-cJSON *jig_jsbridge_walk_fibers(jig_jsbridge *bridge, int timeout_ms) {
+cJSON *jig_jsbridge_walk_fibers(jig_jsbridge *bridge, int timeout_ms, bool include_props) {
     pthread_mutex_lock(&bridge->mutex);
     if (!bridge->js_session) {
         pthread_mutex_unlock(&bridge->mutex);
@@ -82,7 +83,9 @@ cJSON *jig_jsbridge_walk_fibers(jig_jsbridge *bridge, int timeout_ms) {
         bridge->pending_fibers = NULL;
     }
     bridge->fibers_ready = 0;
-    const char *msg = "{\"jsonrpc\":\"2.0\",\"method\":\"jig.internal.walkFibers\",\"params\":{}}";
+    const char *msg = include_props
+        ? "{\"jsonrpc\":\"2.0\",\"method\":\"jig.internal.walkFibers\",\"params\":{\"includeProps\":true}}"
+        : "{\"jsonrpc\":\"2.0\",\"method\":\"jig.internal.walkFibers\",\"params\":{}}";
     bridge->js_session->send_text(msg, bridge->js_session->send_user_data);
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);

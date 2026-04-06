@@ -56,7 +56,7 @@ static cJSON *build_visible_summary(cJSON *elements) {
 
 static cJSON *query_elements(jig_jsbridge *bridge) {
     cJSON *elements = jig_ios_walk_views();
-    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS);
+    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS, false);
     if (fibers) {
         merge_fiber_data(elements, fibers);
         cJSON_Delete(fibers);
