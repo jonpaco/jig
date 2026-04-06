@@ -131,7 +131,7 @@ public class DexPatcher {
 
         // If no <clinit> exists, create one
         if (!hasClinit) {
-            directMethods.add(createClinit());
+            directMethods.add(createClinit(descriptor));
         }
 
         // Split fields into static and instance
@@ -222,7 +222,7 @@ public class DexPatcher {
     /**
      * Create a new <clinit> with System.loadLibrary("jig") + return-void.
      */
-    private static Method createClinit() {
+    private static Method createClinit(String definingClass) {
         List<Instruction> instructions = new ArrayList<>();
 
         // const-string v0, "jig"
@@ -257,7 +257,7 @@ public class DexPatcher {
         );
 
         return new ImmutableMethod(
-                "", // defining class — ImmutableClassDef fills this
+                definingClass,
                 "<clinit>",
                 Collections.emptyList(),
                 "V",
