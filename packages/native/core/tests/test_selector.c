@@ -28,6 +28,13 @@ static cJSON *make_selector_str(const char *field, const char *value) {
     return sel;
 }
 
+static cJSON *make_element_with_props(int tag, const char *component,
+                                       cJSON *props, int parent_tag) {
+    cJSON *el = make_element(tag, NULL, NULL, NULL, component, parent_tag);
+    if (props) cJSON_AddItemToObject(el, "props", props);
+    return el;
+}
+
 static void test_match_testID(void) {
     cJSON *el = make_element(1, "habit-card", NULL, NULL, NULL, -1);
     cJSON *sel = make_selector_str("testID", "habit-card");
@@ -279,6 +286,182 @@ static void test_within_deep_nesting(void) {
     cJSON_Delete(elements);
 }
 
+static void test_match_props_string(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddStringToObject(props, "title", "Exercise");
+    cJSON_AddStringToObject(props, "subtitle", "Daily");
+    cJSON *el = make_element_with_props(1, "HabitCard", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel, "component", "HabitCard");
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel_props, "title", "Exercise");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 1, "props string: partial match");
+    cJSON_Delete(sel);
+
+    sel = cJSON_CreateObject();
+    sel_props = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel_props, "title", "Meditation");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props string: mismatch");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_props_number(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddNumberToObject(props, "streak", 5);
+    cJSON *el = make_element_with_props(1, "HabitCard", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddNumberToObject(sel_props, "streak", 5);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 1, "props number: match");
+    cJSON_Delete(sel);
+
+    sel = cJSON_CreateObject();
+    sel_props = cJSON_CreateObject();
+    cJSON_AddNumberToObject(sel_props, "streak", 10);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props number: mismatch");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_props_boolean(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddBoolToObject(props, "checked", 1);
+    cJSON *el = make_element_with_props(1, "Checkbox", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddBoolToObject(sel_props, "checked", 1);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 1, "props bool: match true");
+    cJSON_Delete(sel);
+
+    sel = cJSON_CreateObject();
+    sel_props = cJSON_CreateObject();
+    cJSON_AddBoolToObject(sel_props, "checked", 0);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props bool: mismatch");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+
+    /* false matches false */
+    cJSON *props2 = cJSON_CreateObject();
+    cJSON_AddBoolToObject(props2, "checked", 0);
+    cJSON *el2 = make_element_with_props(2, "Checkbox", props2, -1);
+    sel = cJSON_CreateObject();
+    sel_props = cJSON_CreateObject();
+    cJSON_AddBoolToObject(sel_props, "checked", 0);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el2, sel) == 1, "props bool: match false");
+    cJSON_Delete(sel);
+    cJSON_Delete(el2);
+}
+
+static void test_match_props_null(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddNullToObject(props, "error");
+    cJSON *el = make_element_with_props(1, "Status", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddNullToObject(sel_props, "error");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 1, "props null: match");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_props_missing_key(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddStringToObject(props, "title", "Exercise");
+    cJSON *el = make_element_with_props(1, "HabitCard", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel_props, "nonexistent", "value");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props missing key: no match");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_props_type_mismatch(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddStringToObject(props, "count", "5");
+    cJSON *el = make_element_with_props(1, "Counter", props, -1);
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddNumberToObject(sel_props, "count", 5);
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props type mismatch: string vs number");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_props_no_props_on_element(void) {
+    cJSON *el = make_element(1, NULL, NULL, NULL, "HabitCard", -1);
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel_props, "title", "Exercise");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+    ASSERT(jig_selector_matches(el, sel) == 0, "props: no props on element");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_match_no_props_selector(void) {
+    cJSON *props = cJSON_CreateObject();
+    cJSON_AddStringToObject(props, "title", "Exercise");
+    cJSON *el = make_element_with_props(1, "HabitCard", props, -1);
+
+    cJSON *sel = make_selector_str("component", "HabitCard");
+    ASSERT(jig_selector_matches(el, sel) == 1, "no props selector: still matches");
+    cJSON_Delete(sel);
+    cJSON_Delete(el);
+}
+
+static void test_find_with_props(void) {
+    cJSON *elements = cJSON_CreateArray();
+
+    cJSON *props1 = cJSON_CreateObject();
+    cJSON_AddStringToObject(props1, "title", "Exercise");
+    cJSON_AddItemToArray(elements, make_element_with_props(10, "HabitCard", props1, -1));
+
+    cJSON *props2 = cJSON_CreateObject();
+    cJSON_AddStringToObject(props2, "title", "Meditation");
+    cJSON_AddItemToArray(elements, make_element_with_props(20, "HabitCard", props2, -1));
+
+    cJSON *props3 = cJSON_CreateObject();
+    cJSON_AddStringToObject(props3, "title", "Exercise");
+    cJSON_AddItemToArray(elements, make_element_with_props(30, "HabitCard", props3, -1));
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel, "component", "HabitCard");
+    cJSON *sel_props = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel_props, "title", "Exercise");
+    cJSON_AddItemToObject(sel, "props", sel_props);
+
+    cJSON *one = jig_selector_find_one(elements, sel);
+    ASSERT(one != NULL, "find with props: found element");
+    cJSON *tag = cJSON_GetObjectItem(one, "reactTag");
+    ASSERT(tag && tag->valueint == 10, "find with props: first match");
+    cJSON_Delete(one);
+
+    cJSON *all = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(all) == 2, "find_all with props: 2 matches");
+    cJSON_Delete(all);
+
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
 int main(void) {
     /* Task 2: basic field matching */
     test_match_testID();
@@ -302,6 +485,17 @@ int main(void) {
     test_within_with_index();
     test_within_no_container();
     test_within_deep_nesting();
+
+    /* Task: props matching */
+    test_match_props_string();
+    test_match_props_number();
+    test_match_props_boolean();
+    test_match_props_null();
+    test_match_props_missing_key();
+    test_match_props_type_mismatch();
+    test_match_props_no_props_on_element();
+    test_match_no_props_selector();
+    test_find_with_props();
 
     if (failures == 0) printf("test_selector: all tests passed\n");
     else printf("test_selector: %d failure(s)\n", failures);

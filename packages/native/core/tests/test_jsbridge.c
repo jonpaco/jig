@@ -30,7 +30,7 @@ static void test_lifecycle(void) {
 
 static void test_no_session(void) {
     jig_jsbridge *bridge = jig_jsbridge_create();
-    cJSON *result = jig_jsbridge_walk_fibers(bridge, 50);
+    cJSON *result = jig_jsbridge_walk_fibers(bridge, 50, false);
     ASSERT(result == NULL, "no session: walk returns NULL");
     jig_jsbridge_destroy(bridge);
 }
@@ -51,7 +51,7 @@ static void test_ready_handler(void) {
     cJSON_Delete(params);
     free(last_bridge_sent);
     last_bridge_sent = NULL;
-    cJSON *walk_result = jig_jsbridge_walk_fibers(bridge, 10);
+    cJSON *walk_result = jig_jsbridge_walk_fibers(bridge, 10, false);
     ASSERT(last_bridge_sent != NULL, "ready handler: walk sent a request");
     ASSERT(walk_result == NULL, "ready handler: walk timed out (no JS response)");
     jig_session_destroy(sess);
@@ -63,7 +63,7 @@ static cJSON *g_thread_result = NULL;
 
 static void *walk_thread_fn(void *arg) {
     jig_jsbridge *bridge = (jig_jsbridge *)arg;
-    g_thread_result = jig_jsbridge_walk_fibers(bridge, 500);
+    g_thread_result = jig_jsbridge_walk_fibers(bridge, 500, false);
     return NULL;
 }
 
@@ -128,9 +128,44 @@ static void test_disconnect(void) {
     jig_jsbridge_on_disconnect(bridge, sess);
     free(last_bridge_sent);
     last_bridge_sent = NULL;
-    cJSON *result = jig_jsbridge_walk_fibers(bridge, 10);
+    cJSON *result = jig_jsbridge_walk_fibers(bridge, 10, false);
     ASSERT(result == NULL, "disconnect: walk returns NULL");
     ASSERT(last_bridge_sent == NULL, "disconnect: no message sent");
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_jsbridge_destroy(bridge);
+}
+
+static void test_walk_include_props(void) {
+    free(last_bridge_sent);
+    last_bridge_sent = NULL;
+    jig_jsbridge *bridge = jig_jsbridge_create();
+    jig_handler **handlers = jig_jsbridge_get_handlers(bridge);
+    jig_app_info *app = jig_app_info_create("Test", "com.test", "ios", "0.74", NULL);
+    jig_session *sess = jig_session_create(1, app, bridge_send, NULL);
+    sess->session_id = strdup("sess_internal");
+    jig_error *err = NULL;
+    cJSON *rparams = cJSON_CreateObject();
+    cJSON *rresult = handlers[0]->handle(handlers[0], rparams, sess, &err);
+    cJSON_Delete(rresult);
+    cJSON_Delete(rparams);
+
+    /* Walk without props */
+    free(last_bridge_sent);
+    last_bridge_sent = NULL;
+    cJSON *result = jig_jsbridge_walk_fibers(bridge, 10, false);
+    ASSERT(last_bridge_sent != NULL, "walk no props: sent request");
+    ASSERT(strstr(last_bridge_sent, "includeProps") == NULL,
+           "walk no props: no includeProps in message");
+
+    /* Walk with props */
+    free(last_bridge_sent);
+    last_bridge_sent = NULL;
+    result = jig_jsbridge_walk_fibers(bridge, 10, true);
+    ASSERT(last_bridge_sent != NULL, "walk with props: sent request");
+    ASSERT(strstr(last_bridge_sent, "\"includeProps\":true") != NULL,
+           "walk with props: includeProps present in message");
+
     jig_session_destroy(sess);
     jig_app_info_free(app);
     jig_jsbridge_destroy(bridge);
@@ -142,6 +177,7 @@ int main(void) {
     test_ready_handler();
     test_walk_success();
     test_disconnect();
+    test_walk_include_props();
     free(last_bridge_sent);
     last_bridge_sent = NULL;
     if (failures == 0) printf("test_jsbridge: all tests passed\n");

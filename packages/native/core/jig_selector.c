@@ -10,12 +10,33 @@ static bool match_string_field(const cJSON *element, const cJSON *selector, cons
     return strcmp(el_val->valuestring, sel_val->valuestring) == 0;
 }
 
+static bool match_props(const cJSON *element, const cJSON *selector) {
+    cJSON *sel_props = cJSON_GetObjectItemCaseSensitive(selector, "props");
+    if (!sel_props || !cJSON_IsObject(sel_props)) return true;
+    cJSON *el_props = cJSON_GetObjectItemCaseSensitive(element, "props");
+    if (!el_props || !cJSON_IsObject(el_props)) return false;
+    cJSON *sel_prop = NULL;
+    cJSON_ArrayForEach(sel_prop, sel_props) {
+        cJSON *el_prop = cJSON_GetObjectItemCaseSensitive(el_props, sel_prop->string);
+        if (!el_prop) return false;
+        if ((sel_prop->type & 0xFF) != (el_prop->type & 0xFF)) return false;
+        if (cJSON_IsString(sel_prop)) {
+            if (strcmp(sel_prop->valuestring, el_prop->valuestring) != 0) return false;
+        } else if (cJSON_IsNumber(sel_prop)) {
+            if (sel_prop->valuedouble != el_prop->valuedouble) return false;
+        }
+        /* bool and null: type equality is sufficient (checked above) */
+    }
+    return true;
+}
+
 bool jig_selector_matches(const cJSON *element, const cJSON *selector) {
     if (!element || !selector) return false;
     if (!match_string_field(element, selector, "testID")) return false;
     if (!match_string_field(element, selector, "text")) return false;
     if (!match_string_field(element, selector, "role")) return false;
     if (!match_string_field(element, selector, "component")) return false;
+    if (!match_props(element, selector)) return false;
     return true;
 }
 

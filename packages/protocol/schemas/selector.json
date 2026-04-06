@@ -20,6 +20,13 @@
       "type": "string",
       "description": "Match by React component name (requires JS bridge)"
     },
+    "props": {
+      "type": "object",
+      "description": "Match elements by React component props. Partial match — element must have at least these top-level keys with equal values. Only scalar values (string, number, boolean, null) are supported.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
     "index": {
       "type": "integer",
       "minimum": 0,
