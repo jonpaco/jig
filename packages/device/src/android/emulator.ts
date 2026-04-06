@@ -98,16 +98,12 @@ async function spawnEmulator(
 ): Promise<string> {
   const emulatorBin = resolveSDKTool('emulator', true);
 
-  // Platform-specific flags:
-  // Linux: -no-window is safe (headless binary has KVM on Linux)
-  // macOS: do NOT use -no-window (headless binary lacks HVF entitlement)
-  const isLinux = process.platform === 'linux';
   const args = [
     '-avd', avdName,
     '-no-audio',
     '-no-boot-anim',
-    '-gpu', isLinux ? 'swiftshader_indirect' : 'auto',
-    ...(isLinux && headless ? ['-no-window'] : []),
+    '-gpu', headless ? 'swiftshader_indirect' : 'auto',
+    ...(headless ? ['-no-window'] : []),
   ];
 
   debug(`Spawning: ${emulatorBin} ${args.join(' ')}`);
