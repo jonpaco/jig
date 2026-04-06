@@ -6,7 +6,7 @@
   "scripts": {
     "build:framework": "bash scripts/build-framework.sh",
     "build:dex": "bash scripts/build-dex.sh",
-    "build:dex-patcher": "cd android/dex-patcher && ./gradlew jar"
+    "build:dex-patcher": "cd android/dex-patcher && gradle jar"
   },
   "peerDependencies": {
     "expo": ">=51.0.0",
