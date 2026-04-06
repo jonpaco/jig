@@ -46,10 +46,11 @@ pnpm monorepo:
 - Touch injection: `View.dispatchTouchEvent(MotionEvent)` on DecorView
 - WebSocket server: shared C core (libwebsockets), same as iOS
 - View hierarchy: recursive `ViewGroup.getChildAt()` traversal
-- Screenshots: `View.draw(Canvas)` via JNI on main thread
+- Screenshots: `PixelCopy` via `JigScreenshotHelper` JNI helper on main thread (reads from SurfaceFlinger, works on headless emulators)
 - Network interception: OkHttp interceptor via `OkHttpClientFactory`
 - testID maps to `contentDescription`
-- JNI helpers (`JigMainThreadRunner`, `JigActivityCallbacks`) are shipped as pre-written smali in `packages/native/android/smali/` — the inject pipeline copies them into APKs alongside `libjig.so`
+- JNI helpers (`JigMainThreadRunner`, `JigActivityCallbacks`, `JigScreenshotHelper`) are compiled from Java source in `packages/native/android/jni/*.java` to `jig-helpers.dex` via `d8`. The inject pipeline adds the DEX as a multidex entry alongside `libjig.so`
+- APK injection is apktool-free: direct ZIP manipulation + `jig-dex-patcher.jar` (dexlib2) for surgical `<clinit>` patching. Resources are never decoded or rebuilt
 
 ### TypeScript
 
