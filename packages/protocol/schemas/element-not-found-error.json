@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ElementNotFoundError",
+  "description": "Error data for ELEMENT_NOT_FOUND (-32002)",
+  "type": "object",
+  "properties": {
+    "selector": {
+      "type": "object",
+      "description": "The selector that failed to match"
+    },
+    "suggestions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Fuzzy-matched testID/text/component values sorted by edit distance"
+    },
+    "visibleElements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "testID": { "type": "string" },
+          "component": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "description": "Summary of currently visible elements for debugging"
+    }
+  },
+  "required": ["selector", "suggestions", "visibleElements"],
+  "additionalProperties": false
+}

@@ -62,10 +62,12 @@ jig_dispatcher_config *jig_dispatcher_create(
     cfg->supported_domains = supported_domains;
     cfg->domain_count = domain_count;
 
-    /* Build command_names: all handler methods except "client.hello" */
+    /* Build command_names: all handler methods except "client.hello" and
+     * internal "jig.internal.*" handlers (not exposed to external clients) */
     int cmd_count = 0;
     for (int i = 0; i < handler_count; i++) {
-        if (strcmp(handlers[i]->method, "client.hello") != 0) {
+        if (strcmp(handlers[i]->method, "client.hello") != 0 &&
+            strncmp(handlers[i]->method, "jig.internal.", 13) != 0) {
             cmd_count++;
         }
     }
@@ -74,7 +76,8 @@ jig_dispatcher_config *jig_dispatcher_create(
         cfg->command_names = calloc((size_t)cmd_count, sizeof(const char *));
         int idx = 0;
         for (int i = 0; i < handler_count; i++) {
-            if (strcmp(handlers[i]->method, "client.hello") != 0) {
+            if (strcmp(handlers[i]->method, "client.hello") != 0 &&
+                strncmp(handlers[i]->method, "jig.internal.", 13) != 0) {
                 cfg->command_names[idx++] = handlers[i]->method;
             }
         }

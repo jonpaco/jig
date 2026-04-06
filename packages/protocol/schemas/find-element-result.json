@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FindElementResult",
+  "description": "Result of the jig.findElement command",
+  "type": "object",
+  "properties": {
+    "element": {
+      "type": "object",
+      "description": "The matched element — see element.json for full shape"
+    }
+  },
+  "required": ["element"],
+  "additionalProperties": false
+}

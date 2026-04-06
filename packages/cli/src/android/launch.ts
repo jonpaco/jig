@@ -42,6 +42,15 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
   // Install via adb
   await execFileAsync('adb', ['-s', device.serial, 'install', '-r', '-t', patchedApk]);
 
+  // Push fiber walker JS to device for JS bridge injection
+  const cliRoot = path.resolve(__dirname, '..', '..');
+  const fiberWalkerDistPath = path.join(cliRoot, 'assets', 'fiber-walker.js');
+  const fiberWalkerDevPath = path.resolve(cliRoot, '..', 'native', 'core', 'js', 'fiber-walker.js');
+  const fiberWalkerPath = fs.existsSync(fiberWalkerDistPath) ? fiberWalkerDistPath : fiberWalkerDevPath;
+  if (fs.existsSync(fiberWalkerPath)) {
+    await execFileAsync('adb', ['-s', device.serial, 'push', fiberWalkerPath, '/data/local/tmp/jig-fiber-walker.js']);
+  }
+
   // Parse the original APK's manifest to find the main activity for launch.
   // We re-read from the patched APK's decoded manifest isn't available after
   // cleanup, so we use aapt to extract package/activity from the patched APK.

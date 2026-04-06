@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Element",
+  "description": "An element found on screen",
+  "type": "object",
+  "properties": {
+    "reactTag": {
+      "type": "integer",
+      "description": "React Native internal view identifier"
+    },
+    "testID": {
+      "type": "string",
+      "description": "Developer-assigned test identifier"
+    },
+    "text": {
+      "type": "string",
+      "description": "Visible text content"
+    },
+    "role": {
+      "type": "string",
+      "description": "Accessibility role"
+    },
+    "component": {
+      "type": "string",
+      "description": "React component name (from fiber tree)"
+    },
+    "frame": {
+      "type": "object",
+      "description": "Screen coordinates and dimensions",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      },
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false
+    },
+    "visible": {
+      "type": "boolean",
+      "description": "Whether the element is visible on screen"
+    }
+  },
+  "required": ["reactTag", "frame", "visible"],
+  "additionalProperties": false
+}

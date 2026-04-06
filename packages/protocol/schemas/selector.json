@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Selector",
+  "description": "Element selector for jig.findElement and jig.findElements",
+  "type": "object",
+  "properties": {
+    "testID": {
+      "type": "string",
+      "description": "Match by testID (accessibilityIdentifier on iOS, contentDescription on Android)"
+    },
+    "text": {
+      "type": "string",
+      "description": "Match by visible text content"
+    },
+    "role": {
+      "type": "string",
+      "description": "Match by accessibility role"
+    },
+    "component": {
+      "type": "string",
+      "description": "Match by React component name (requires JS bridge)"
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "When multiple elements match, select the Nth (0-based)"
+    },
+    "within": {
+      "$ref": "#",
+      "description": "Scope search to descendants of the element matching this selector"
+    },
+    "selector": {
+      "$ref": "#",
+      "description": "Inner selector to match within the scoped container"
+    }
+  },
+  "dependencies": {
+    "within": ["selector"],
+    "selector": ["within"]
+  },
+  "additionalProperties": false
+}

@@ -1,5 +1,11 @@
 import WebSocket from 'ws';
-import type { ServerHelloParams, ScreenshotParams, ScreenshotResult } from '@jig/protocol';
+import type {
+  ServerHelloParams,
+  ScreenshotParams,
+  ScreenshotResult,
+  FindElementResult,
+  FindElementsResult,
+} from '@jig/protocol';
 import { JigError } from '../errors';
 
 export interface ConnectOptions {
@@ -15,6 +21,8 @@ export interface Session {
   readonly sessionId: string;
   send<TResult = unknown>(method: string, params?: Record<string, unknown>): Promise<TResult>;
   screenshot(params?: ScreenshotParams): Promise<ScreenshotResult>;
+  findElement(selector: Record<string, unknown>): Promise<FindElementResult>;
+  findElements(selector: Record<string, unknown>): Promise<FindElementsResult>;
   disconnect(): void;
 }
 
@@ -157,5 +165,13 @@ function createSession(
     return send<ScreenshotResult>('jig.screenshot', wireParams);
   }
 
-  return { serverHello, sessionId, send, screenshot, disconnect };
+  function findElement(selector: Record<string, unknown>): Promise<FindElementResult> {
+    return send<FindElementResult>('jig.findElement', { selector });
+  }
+
+  function findElements(selector: Record<string, unknown>): Promise<FindElementsResult> {
+    return send<FindElementsResult>('jig.findElements', { selector });
+  }
+
+  return { serverHello, sessionId, send, screenshot, findElement, findElements, disconnect };
 }
