@@ -517,6 +517,53 @@ static void test_dispatch_main_thread_no_platform_op(void) {
     jig_dispatcher_destroy(cfg);
 }
 
+static cJSON *internal_handle(jig_handler *self, cJSON *params,
+                               jig_session *session, jig_error **err) {
+    (void)self; (void)params; (void)session; (void)err;
+    return cJSON_CreateObject();
+}
+
+static jig_handler internal_handler = {
+    .method = "jig.internal.ready",
+    .thread_target = JIG_THREAD_WEBSOCKET,
+    .handle = internal_handle,
+    .user_data = NULL,
+};
+
+static void test_internal_handlers_hidden_from_commands(void) {
+    clear_sent();
+    jig_handler *hs = jig_handshake_create();
+    jig_handler *handlers[] = { hs, &echo_handler, &internal_handler };
+    jig_dispatcher_config *cfg = jig_dispatcher_create(
+        NULL, 0, handlers, 3, NULL, 0);
+
+    ASSERT(cfg->command_count == 1,
+           "internal hidden: command_count excludes internal handler");
+    ASSERT(strcmp(cfg->command_names[0], "test.echo") == 0,
+           "internal hidden: only test.echo in commands");
+
+    jig_app_info *app = make_app();
+    jig_session *sess = jig_session_create(1, app, capture_send, NULL);
+
+    jig_dispatcher_handle_open(cfg, sess);
+    cJSON *msg = cJSON_Parse(last_sent);
+    cJSON *params = cJSON_GetObjectItem(msg, "params");
+    cJSON *commands = cJSON_GetObjectItem(params, "commands");
+    int found_internal = 0;
+    cJSON *item;
+    cJSON_ArrayForEach(item, commands) {
+        if (strstr(item->valuestring, "jig.internal") != NULL) found_internal = 1;
+    }
+    ASSERT(found_internal == 0,
+           "internal hidden: server.hello commands exclude internal handlers");
+
+    cJSON_Delete(msg);
+    jig_session_destroy(sess);
+    jig_app_info_free(app);
+    jig_handshake_destroy(hs);
+    jig_dispatcher_destroy(cfg);
+}
+
 int main(void) {
     test_dispatch_valid_command();
     test_dispatch_unknown_method();
@@ -529,6 +576,7 @@ int main(void) {
     test_dispatch_main_thread_handler();
     test_dispatch_main_thread_error();
     test_dispatch_main_thread_no_platform_op();
+    test_internal_handlers_hidden_from_commands();
 
     clear_sent();
 
