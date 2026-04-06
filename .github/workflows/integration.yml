@@ -78,6 +78,53 @@ jobs:
             })();
           "
 
+      - name: Verify element selection
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const session = await connect();
+
+              // Test 1: findElements with empty selector returns non-empty list
+              const all = await session.findElements({});
+              if (all.elements.length === 0) throw new Error('findElements returned empty');
+              console.log('findElements: ' + all.elements.length + ' elements found');
+
+              // Test 2: findElement with a known testID
+              let foundByTestID = false;
+              for (const el of all.elements) {
+                if (el.testID) {
+                  const result = await session.findElement({ testID: el.testID });
+                  if (result.element.reactTag !== el.reactTag) {
+                    throw new Error('testID lookup returned wrong element');
+                  }
+                  console.log('findElement by testID: found ' + el.testID);
+                  foundByTestID = true;
+                  break;
+                }
+              }
+              if (!foundByTestID) console.log('WARN: no elements with testID found');
+
+              // Test 3: findElement with nonexistent testID returns ELEMENT_NOT_FOUND
+              try {
+                await session.findElement({ testID: 'jig-nonexistent-test-id-xyz' });
+                throw new Error('Expected ELEMENT_NOT_FOUND error');
+              } catch (err) {
+                if (err.code !== -32002) throw new Error('Wrong error code: ' + err.code);
+                console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
+              }
+
+              // Test 4: Check for component names (JS bridge connected)
+              await new Promise(r => setTimeout(r, 3000));
+              const withBridge = await session.findElements({});
+              const withComponent = withBridge.elements.filter(e => e.component);
+              console.log('Elements with component: ' + withComponent.length + '/' + withBridge.elements.length);
+
+              session.disconnect();
+              console.log('Element selection verification passed');
+            })();
+          "
+
       - name: Cleanup
         if: always()
         run: node packages/device/dist/cli.js kill --all
@@ -179,6 +226,53 @@ jobs:
               require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
               console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
               await client.disconnect();
+            })();
+          "
+
+      - name: Verify element selection
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const session = await connect();
+
+              // Test 1: findElements with empty selector returns non-empty list
+              const all = await session.findElements({});
+              if (all.elements.length === 0) throw new Error('findElements returned empty');
+              console.log('findElements: ' + all.elements.length + ' elements found');
+
+              // Test 2: findElement with a known testID
+              let foundByTestID = false;
+              for (const el of all.elements) {
+                if (el.testID) {
+                  const result = await session.findElement({ testID: el.testID });
+                  if (result.element.reactTag !== el.reactTag) {
+                    throw new Error('testID lookup returned wrong element');
+                  }
+                  console.log('findElement by testID: found ' + el.testID);
+                  foundByTestID = true;
+                  break;
+                }
+              }
+              if (!foundByTestID) console.log('WARN: no elements with testID found');
+
+              // Test 3: findElement with nonexistent testID returns ELEMENT_NOT_FOUND
+              try {
+                await session.findElement({ testID: 'jig-nonexistent-test-id-xyz' });
+                throw new Error('Expected ELEMENT_NOT_FOUND error');
+              } catch (err) {
+                if (err.code !== -32002) throw new Error('Wrong error code: ' + err.code);
+                console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
+              }
+
+              // Test 4: Check for component names (JS bridge connected)
+              await new Promise(r => setTimeout(r, 3000));
+              const withBridge = await session.findElements({});
+              const withComponent = withBridge.elements.filter(e => e.component);
+              console.log('Elements with component: ' + withComponent.length + '/' + withBridge.elements.length);
+
+              session.disconnect();
+              console.log('Element selection verification passed');
             })();
           "
 
