@@ -6,6 +6,7 @@ import { injectApk, getPackageAndActivity } from './inject';
 import { resolveLibjigDir, resolveHelpersDex, resolveDexPatcher } from './resolve';
 import { ensureDevice } from './emulator';
 import { execFileAsync } from '@jig/device';
+import { DEFAULT_PORT } from '@jig/protocol';
 import fs from 'fs';
 
 export interface AndroidLaunchOptions {
@@ -19,7 +20,7 @@ export interface AndroidLaunchOptions {
  * and launch the main activity.
  */
 export async function launchAndroid(options: AndroidLaunchOptions): Promise<string> {
-  const { apkPath, libjig, port = 4042 } = options;
+  const { apkPath, libjig, port = DEFAULT_PORT } = options;
 
   // Ensure a device/emulator is available
   const device = await ensureDevice();
