@@ -19,13 +19,48 @@ bool jig_selector_matches(const cJSON *element, const cJSON *selector) {
     return true;
 }
 
+static bool is_descendant_of(const cJSON *elements, const cJSON *element, int ancestor_tag) {
+    cJSON *parent_ref = cJSON_GetObjectItemCaseSensitive(element, "parentReactTag");
+    if (!parent_ref || !cJSON_IsNumber(parent_ref)) return false;
+    int parent_tag = parent_ref->valueint;
+    if (parent_tag == ancestor_tag) return true;
+    cJSON *item = NULL;
+    cJSON_ArrayForEach(item, elements) {
+        cJSON *tag = cJSON_GetObjectItemCaseSensitive(item, "reactTag");
+        if (tag && cJSON_IsNumber(tag) && tag->valueint == parent_tag) {
+            return is_descendant_of(elements, item, ancestor_tag);
+        }
+    }
+    return false;
+}
+
+static cJSON *get_descendants(const cJSON *elements, int container_tag) {
+    cJSON *descendants = cJSON_CreateArray();
+    cJSON *el = NULL;
+    cJSON_ArrayForEach(el, elements) {
+        if (is_descendant_of(elements, el, container_tag)) {
+            cJSON_AddItemToArray(descendants, cJSON_Duplicate(el, 1));
+        }
+    }
+    return descendants;
+}
+
 cJSON *jig_selector_find_one(const cJSON *elements, const cJSON *selector) {
     if (!elements || !selector) return NULL;
 
     cJSON *within = cJSON_GetObjectItemCaseSensitive(selector, "within");
     cJSON *inner = cJSON_GetObjectItemCaseSensitive(selector, "selector");
     if (within && inner) {
-        return NULL; /* Placeholder for within — Task 4 */
+        cJSON *container = jig_selector_find_one(elements, within);
+        if (!container) return NULL;
+        cJSON *tag = cJSON_GetObjectItemCaseSensitive(container, "reactTag");
+        int container_tag = tag ? tag->valueint : -1;
+        cJSON_Delete(container);
+        if (container_tag < 0) return NULL;
+        cJSON *descendants = get_descendants(elements, container_tag);
+        cJSON *result = jig_selector_find_one(descendants, inner);
+        cJSON_Delete(descendants);
+        return result;
     }
 
     cJSON *idx_item = cJSON_GetObjectItemCaseSensitive(selector, "index");
@@ -53,7 +88,17 @@ cJSON *jig_selector_find_all(const cJSON *elements, const cJSON *selector) {
     cJSON *within = cJSON_GetObjectItemCaseSensitive(selector, "within");
     cJSON *inner = cJSON_GetObjectItemCaseSensitive(selector, "selector");
     if (within && inner) {
-        return result; /* Placeholder for within — Task 4 */
+        cJSON *container = jig_selector_find_one(elements, within);
+        if (!container) return result;
+        cJSON *tag = cJSON_GetObjectItemCaseSensitive(container, "reactTag");
+        int container_tag = tag ? tag->valueint : -1;
+        cJSON_Delete(container);
+        if (container_tag < 0) return result;
+        cJSON *descendants = get_descendants(elements, container_tag);
+        cJSON_Delete(result);
+        result = jig_selector_find_all(descendants, inner);
+        cJSON_Delete(descendants);
+        return result;
     }
 
     cJSON *el = NULL;

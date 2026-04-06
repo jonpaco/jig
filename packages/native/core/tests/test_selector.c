@@ -181,6 +181,104 @@ static void test_find_all_with_empty_selector(void) {
     cJSON_Delete(elements);
 }
 
+static void test_within_basic(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "habits-list", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(20, NULL, NULL, NULL, "HabitCard", 10));
+    cJSON_AddItemToArray(elements, make_element(30, NULL, NULL, NULL, "HabitCard", 10));
+    cJSON_AddItemToArray(elements, make_element(40, "settings", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(50, NULL, NULL, NULL, "HabitCard", 40));
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *within_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(within_sel, "testID", "habits-list");
+    cJSON_AddItemToObject(sel, "within", within_sel);
+    cJSON *inner_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(inner_sel, "component", "HabitCard");
+    cJSON_AddItemToObject(sel, "selector", inner_sel);
+
+    cJSON *result = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(result) == 2, "within basic: found 2 HabitCards inside habits-list");
+    cJSON_Delete(result);
+
+    cJSON *one = jig_selector_find_one(elements, sel);
+    ASSERT(one != NULL, "within find_one: found element");
+    cJSON *tag = cJSON_GetObjectItem(one, "reactTag");
+    ASSERT(tag && tag->valueint == 20, "within find_one: first match is tag 20");
+    cJSON_Delete(one);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_within_with_index(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "list", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(20, NULL, NULL, NULL, "Card", 10));
+    cJSON_AddItemToArray(elements, make_element(30, NULL, NULL, NULL, "Card", 10));
+    cJSON_AddItemToArray(elements, make_element(40, NULL, NULL, NULL, "Card", 10));
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *within_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(within_sel, "testID", "list");
+    cJSON_AddItemToObject(sel, "within", within_sel);
+    cJSON *inner_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(inner_sel, "component", "Card");
+    cJSON_AddNumberToObject(inner_sel, "index", 1);
+    cJSON_AddItemToObject(sel, "selector", inner_sel);
+
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result != NULL, "within+index: found element");
+    cJSON *tag = cJSON_GetObjectItem(result, "reactTag");
+    ASSERT(tag && tag->valueint == 30, "within+index: correct tag (index 1 = tag 30)");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_within_no_container(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "card", NULL, NULL, NULL, -1));
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *within_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(within_sel, "testID", "nonexistent");
+    cJSON_AddItemToObject(sel, "within", within_sel);
+    cJSON *inner_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(inner_sel, "testID", "card");
+    cJSON_AddItemToObject(sel, "selector", inner_sel);
+
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result == NULL, "within no container: returns NULL");
+    cJSON *all = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(all) == 0, "within no container: returns empty array");
+    cJSON_Delete(all);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_within_deep_nesting(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(1, "root", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(2, NULL, NULL, NULL, NULL, 1));
+    cJSON_AddItemToArray(elements, make_element(3, "deep-child", NULL, NULL, NULL, 2));
+
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *within_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(within_sel, "testID", "root");
+    cJSON_AddItemToObject(sel, "within", within_sel);
+    cJSON *inner_sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(inner_sel, "testID", "deep-child");
+    cJSON_AddItemToObject(sel, "selector", inner_sel);
+
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result != NULL, "within deep: found deeply nested element");
+    cJSON *tag = cJSON_GetObjectItem(result, "reactTag");
+    ASSERT(tag && tag->valueint == 3, "within deep: correct tag");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
 int main(void) {
     /* Task 2: basic field matching */
     test_match_testID();
@@ -198,6 +296,12 @@ int main(void) {
     test_find_all_empty();
     test_find_one_with_index();
     test_find_all_with_empty_selector();
+
+    /* Task 4: within scoping */
+    test_within_basic();
+    test_within_with_index();
+    test_within_no_container();
+    test_within_deep_nesting();
 
     if (failures == 0) printf("test_selector: all tests passed\n");
     else printf("test_selector: %d failure(s)\n", failures);
