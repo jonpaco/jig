@@ -10,3 +10,4 @@ screenshot.png
 # Native build output
 packages/native/build/
 packages/native/core/build/
+packages/native/android/dex-patcher/build/
