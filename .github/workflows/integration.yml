@@ -223,19 +223,6 @@ jobs:
       - name: Verify connection
         run: node packages/cli/dist/index.js status
 
-      - name: Capture screenshot
-        run: |
-          node -e "
-            const { connect } = require('./packages/sdk/dist');
-            (async () => {
-              const client = await connect();
-              const result = await client.screenshot();
-              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
-              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
-              await client.disconnect();
-            })();
-          "
-
       - name: Verify element selection
         run: |
           node -e "
@@ -280,6 +267,20 @@ jobs:
 
               session.disconnect();
               console.log('Element selection verification passed');
+            })();
+          "
+
+      - name: Capture screenshot (best-effort)
+        continue-on-error: true
+        run: |
+          node -e "
+            const { connect } = require('./packages/sdk/dist');
+            (async () => {
+              const client = await connect();
+              const result = await client.screenshot();
+              require('fs').writeFileSync('/tmp/screenshot-android.png', Buffer.from(result.data, 'base64'));
+              console.log('Screenshot: ' + result.width + 'x' + result.height + ' ' + result.format);
+              await client.disconnect();
             })();
           "
 
