@@ -96,7 +96,7 @@ function createSession(
 ): Session {
   let nextId = 2; // 1 was used for client.hello
   const pending = new Map<number, {
-    resolve: (result: any) => void;
+    resolve: (result: unknown) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
   }>();
@@ -119,7 +119,7 @@ function createSession(
     pending.clear();
   });
   ws.on('message', (raw: WebSocket.RawData) => {
-    let msg: any;
+    let msg: { id?: number; error?: { code: number; message: string; data?: unknown }; result?: unknown };
     try {
       msg = JSON.parse(raw.toString());
     } catch {
@@ -151,7 +151,7 @@ function createSession(
         pending.delete(id);
         reject(new Error(`Command '${method}' timed out after ${DEFAULT_COMMAND_TIMEOUT}ms`));
       }, DEFAULT_COMMAND_TIMEOUT);
-      pending.set(id, { resolve, reject, timer });
+      pending.set(id, { resolve: resolve as (result: unknown) => void, reject, timer });
       ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} }));
     });
   }
