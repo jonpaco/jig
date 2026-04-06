@@ -15,15 +15,18 @@ static void merge_fiber_data(cJSON *elements, cJSON *fibers) {
     cJSON *fiber = NULL;
     cJSON_ArrayForEach(fiber, fibers) {
         cJSON *fiber_tag = cJSON_GetObjectItemCaseSensitive(fiber, "reactTag");
-        cJSON *fiber_comp = cJSON_GetObjectItemCaseSensitive(fiber, "component");
         if (!fiber_tag || !cJSON_IsNumber(fiber_tag)) continue;
-        if (!fiber_comp || !cJSON_IsString(fiber_comp)) continue;
+        cJSON *fiber_comp = cJSON_GetObjectItemCaseSensitive(fiber, "component");
+        cJSON *fiber_props = cJSON_GetObjectItemCaseSensitive(fiber, "props");
         cJSON *el = NULL;
         cJSON_ArrayForEach(el, elements) {
             cJSON *el_tag = cJSON_GetObjectItemCaseSensitive(el, "reactTag");
             if (el_tag && cJSON_IsNumber(el_tag) &&
                 el_tag->valueint == fiber_tag->valueint) {
-                cJSON_AddStringToObject(el, "component", fiber_comp->valuestring);
+                if (fiber_comp && cJSON_IsString(fiber_comp))
+                    cJSON_AddStringToObject(el, "component", fiber_comp->valuestring);
+                if (fiber_props && cJSON_IsObject(fiber_props))
+                    cJSON_AddItemToObject(el, "props", cJSON_Duplicate(fiber_props, 1));
                 break;
             }
         }
@@ -54,9 +57,9 @@ static cJSON *build_visible_summary(cJSON *elements) {
     return summary;
 }
 
-static cJSON *query_elements(jig_jsbridge *bridge) {
+static cJSON *query_elements(jig_jsbridge *bridge, bool include_props) {
     cJSON *elements = jig_ios_walk_views();
-    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS, false);
+    cJSON *fibers = jig_jsbridge_walk_fibers(bridge, JS_BRIDGE_TIMEOUT_MS, include_props);
     if (fibers) {
         merge_fiber_data(elements, fibers);
         cJSON_Delete(fibers);
@@ -73,7 +76,8 @@ static cJSON *find_element_handle(jig_handler *self, cJSON *params,
         *err = jig_error_invalid_params("Missing 'selector' field");
         return NULL;
     }
-    cJSON *elements = query_elements(bridge);
+    bool include_props = cJSON_HasObjectItem(selector, "props");
+    cJSON *elements = query_elements(bridge, include_props);
     cJSON *match = jig_selector_find_one(elements, selector);
     if (!match) {
         cJSON *suggestions = jig_suggest_elements(elements, selector, MAX_SUGGESTIONS);
@@ -114,7 +118,8 @@ static cJSON *find_elements_handle(jig_handler *self, cJSON *params,
         *err = jig_error_invalid_params("Missing 'selector' field");
         return NULL;
     }
-    cJSON *elements = query_elements(bridge);
+    bool include_props = cJSON_HasObjectItem(selector, "props");
+    cJSON *elements = query_elements(bridge, include_props);
     cJSON *matches = jig_selector_find_all(elements, selector);
     cJSON_Delete(elements);
     cJSON *clean_matches = cJSON_CreateArray();
