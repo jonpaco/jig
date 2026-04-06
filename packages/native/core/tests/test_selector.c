@@ -97,7 +97,92 @@ static void test_empty_selector_matches_all(void) {
     cJSON_Delete(el);
 }
 
+static void test_find_one_basic(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "header", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(20, "habit-card", NULL, NULL, NULL, 10));
+    cJSON_AddItemToArray(elements, make_element(30, "footer", NULL, NULL, NULL, -1));
+    cJSON *sel = make_selector_str("testID", "habit-card");
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result != NULL, "find_one basic: found element");
+    cJSON *tag = cJSON_GetObjectItem(result, "reactTag");
+    ASSERT(tag && tag->valueint == 20, "find_one basic: correct reactTag");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_find_one_no_match(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "header", NULL, NULL, NULL, -1));
+    cJSON *sel = make_selector_str("testID", "nonexistent");
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result == NULL, "find_one no match: returns NULL");
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_find_all_basic(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, NULL, NULL, NULL, "HabitCard", -1));
+    cJSON_AddItemToArray(elements, make_element(20, NULL, NULL, NULL, "Header", -1));
+    cJSON_AddItemToArray(elements, make_element(30, NULL, NULL, NULL, "HabitCard", -1));
+    cJSON *sel = make_selector_str("component", "HabitCard");
+    cJSON *result = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(result) == 2, "find_all basic: found 2 elements");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_find_all_empty(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "card", NULL, NULL, NULL, -1));
+    cJSON *sel = make_selector_str("testID", "nonexistent");
+    cJSON *result = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(result) == 0, "find_all empty: returns empty array");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_find_one_with_index(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, NULL, NULL, NULL, "HabitCard", -1));
+    cJSON_AddItemToArray(elements, make_element(20, NULL, NULL, NULL, "HabitCard", -1));
+    cJSON_AddItemToArray(elements, make_element(30, NULL, NULL, NULL, "HabitCard", -1));
+    cJSON *sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel, "component", "HabitCard");
+    cJSON_AddNumberToObject(sel, "index", 2);
+    cJSON *result = jig_selector_find_one(elements, sel);
+    ASSERT(result != NULL, "find_one index: found element");
+    cJSON *tag = cJSON_GetObjectItem(result, "reactTag");
+    ASSERT(tag && tag->valueint == 30, "find_one index: correct reactTag (index 2)");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    sel = cJSON_CreateObject();
+    cJSON_AddStringToObject(sel, "component", "HabitCard");
+    cJSON_AddNumberToObject(sel, "index", 5);
+    result = jig_selector_find_one(elements, sel);
+    ASSERT(result == NULL, "find_one index out of range: returns NULL");
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
+static void test_find_all_with_empty_selector(void) {
+    cJSON *elements = cJSON_CreateArray();
+    cJSON_AddItemToArray(elements, make_element(10, "a", NULL, NULL, NULL, -1));
+    cJSON_AddItemToArray(elements, make_element(20, "b", NULL, NULL, NULL, -1));
+    cJSON *sel = cJSON_CreateObject();
+    cJSON *result = jig_selector_find_all(elements, sel);
+    ASSERT(cJSON_GetArraySize(result) == 2, "find_all empty selector: returns all elements");
+    cJSON_Delete(result);
+    cJSON_Delete(sel);
+    cJSON_Delete(elements);
+}
+
 int main(void) {
+    /* Task 2: basic field matching */
     test_match_testID();
     test_match_text();
     test_match_role();
@@ -105,6 +190,15 @@ int main(void) {
     test_match_missing_field();
     test_match_and_fields();
     test_empty_selector_matches_all();
+
+    /* Task 3: find_one, find_all, index */
+    test_find_one_basic();
+    test_find_one_no_match();
+    test_find_all_basic();
+    test_find_all_empty();
+    test_find_one_with_index();
+    test_find_all_with_empty_selector();
+
     if (failures == 0) printf("test_selector: all tests passed\n");
     else printf("test_selector: %d failure(s)\n", failures);
     return failures;
