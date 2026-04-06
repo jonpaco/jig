@@ -1,10 +1,10 @@
 // Required external tools: adb (Android SDK platform-tools),
-// plus all tools listed in inject.ts (apktool, zipalign, apksigner, aapt, keytool).
+// plus all tools listed in inject.ts (aapt2, zipalign, apksigner, keytool, java).
 
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { injectApk, findMainActivity } from './inject';
+import { injectApk, getPackageAndActivity } from './inject';
 import { resolveLibjigDir } from './resolve';
 import { ensureDevice } from './emulator';
 import fs from 'fs';
@@ -34,9 +34,15 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
   const libjigDir = resolveLibjigDir(libjig);
 
   // Inject into APK
+  const nativeRoot = path.resolve(libjigDir, '..', '..');
+  const helpersDexPath = path.join(nativeRoot, 'build', 'dex', 'jig-helpers.dex');
+  const dexPatcherJarPath = path.join(nativeRoot, 'android', 'dex-patcher', 'build', 'libs', 'jig-dex-patcher.jar');
+
   const patchedApk = await injectApk({
     apkPath,
     libjigDir,
+    helpersDexPath,
+    dexPatcherJarPath,
   });
 
   // Install via adb
@@ -76,29 +82,3 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
   );
 }
 
-/**
- * Extract package name and main activity from an APK using aapt.
- */
-async function getPackageAndActivity(apkPath: string): Promise<{
-  packageName: string;
-  activityName: string;
-}> {
-  const { stdout } = await execFileAsync('aapt', [
-    'dump', 'badging', apkPath,
-  ]);
-
-  const packageMatch = stdout.match(/package:\s*name='([^']+)'/);
-  if (!packageMatch) {
-    throw new Error('Could not extract package name from APK');
-  }
-
-  const activityMatch = stdout.match(/launchable-activity:\s*name='([^']+)'/);
-  if (!activityMatch) {
-    throw new Error('Could not extract launchable activity from APK');
-  }
-
-  return {
-    packageName: packageMatch[1],
-    activityName: activityMatch[1],
-  };
-}
