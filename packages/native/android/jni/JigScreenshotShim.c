@@ -191,10 +191,10 @@ static cJSON *screenshot_handle(jig_handler *self, cJSON *params,
         return NULL;
     }
 
-    /* Retry PixelCopy up to 3 times — the surface may not be ready yet
+    /* Retry PixelCopy up to 5 times — the surface may not be ready yet
      * on headless emulators (error code 3 = ERROR_SOURCE_NO_DATA). */
     jint copy_result = -1;
-    for (int attempt = 0; attempt < 3; attempt++) {
+    for (int attempt = 0; attempt < 5; attempt++) {
         copy_result = (*env)->CallStaticIntMethod(env, helper_class,
             capture_method, window, bitmap);
         if (copy_result == 0) break;
@@ -209,7 +209,7 @@ static cJSON *screenshot_handle(jig_handler *self, cJSON *params,
         (*env)->DeleteLocalRef(env, activity);
         if (attached) (*jvm)->DetachCurrentThread(jvm);
         char msg[64];
-        snprintf(msg, sizeof(msg), "PixelCopy failed with code %d after 3 attempts", (int)copy_result);
+        snprintf(msg, sizeof(msg), "PixelCopy failed with code %d after 5 attempts", (int)copy_result);
         *err = jig_error_internal(msg);
         return NULL;
     }
