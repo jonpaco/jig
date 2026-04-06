@@ -1,15 +1,13 @@
 // Required external tools: adb (Android SDK platform-tools),
 // plus all tools listed in inject.ts (aapt2, zipalign, apksigner, keytool, java).
 
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import path from 'path';
 import { injectApk, getPackageAndActivity } from './inject';
 import { resolveLibjigDir, resolveHelpersDex, resolveDexPatcher } from './resolve';
 import { ensureDevice } from './emulator';
+import { execFileAsync } from '@jig/device';
+import { DEFAULT_PORT } from '@jig/protocol';
 import fs from 'fs';
-
-const execFileAsync = promisify(execFile);
 
 export interface AndroidLaunchOptions {
   apkPath: string;
@@ -22,7 +20,7 @@ export interface AndroidLaunchOptions {
  * and launch the main activity.
  */
 export async function launchAndroid(options: AndroidLaunchOptions): Promise<string> {
-  const { apkPath, libjig, port = 4042 } = options;
+  const { apkPath, libjig, port = DEFAULT_PORT } = options;
 
   // Ensure a device/emulator is available
   const device = await ensureDevice();

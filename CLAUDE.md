@@ -13,15 +13,24 @@ pnpm monorepo:
 | `@jig/protocol` | `packages/protocol/` | JSON Schema spec + generated TypeScript types |
 | `@jig/native` | `packages/native/` | Native source (build-only) — server, touch injection, view walking |
 | `@jig/sdk` | `packages/sdk/` | TypeScript client — commands, events, element selection |
-| `@jig/jest` | `packages/jest/` | Jest preset — setup/teardown, matchers |
 | `@jig/cli` | `packages/cli/` | CLI — `jig launch`, `jig status`, `jig wait`, `jig report` |
 | `@jig/device` | `packages/device/` | Device management — deterministic emulator & simulator lifecycle |
-| `@jig/mcp` | `packages/mcp/` | MCP server — exposes Jig as tools for AI agents |
 
 | Other | Path | Purpose |
 |-------|------|---------|
-| Example app | `examples/basic-app/` | Tier 1 test target — simple Expo app |
-| Docs | `docs/` | Protocol spec, getting started, CI guide |
+| Docs | `docs/` | Device management guide |
+
+### Android Build Tools
+
+| Tool | Path | Build command | Output |
+|------|------|---------------|--------|
+| libjig.so | `scripts/build-so.sh` | `bash scripts/build-so.sh` | `packages/native/build/android/<abi>/libjig.so` |
+| jig-helpers.dex | `packages/native/scripts/build-dex.sh` | `pnpm build:dex` (in `@jig/native`) | `packages/native/build/dex/jig-helpers.dex` |
+| jig-dex-patcher.jar | `packages/native/android/dex-patcher/` | `pnpm build:dex-patcher` (in `@jig/native`) | `packages/native/android/dex-patcher/build/libs/jig-dex-patcher.jar` |
+
+- **build-dex.sh**: Compiles `packages/native/android/jni/*.java` → `.class` (javac) → `.dex` (d8). Requires `ANDROID_HOME`.
+- **dex-patcher**: Gradle project using dexlib2. Inserts `System.loadLibrary("jig")` into a DEX class's `<clinit>`. Used by the inject pipeline (`packages/cli/src/android/inject.ts`).
+- **zip.ts** (`packages/cli/src/android/zip.ts`): ZIP manipulation utilities for APK injection — add/replace/extract entries without apktool. Preserves original compression methods (critical: `resources.arsc` and `.so` must stay uncompressed).
 
 ### Android Build Tools
 
@@ -85,7 +94,7 @@ pnpm monorepo:
 ### Testing
 
 - TDD: write failing test first, then implement
-- Test against `examples/basic-app/` for fast development loop
+- Test against Habit Tracker (`jonpaco/open-source-habit-tracker-app`) for fast development loop
 - Test against Bluesky Social and Artsy Eigen for production validation
 
 ## Branching

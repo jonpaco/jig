@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { status } from './commands/status';
 import { wait } from './commands/wait';
 import { launch } from './commands/launch';
+import { DEFAULT_PORT, DEFAULT_CONNECT_TIMEOUT, DEFAULT_WAIT_TIMEOUT, DEFAULT_RETRY_INTERVAL, CLIENT_VERSION } from '@jig/protocol';
 
 const program = new Command();
 
@@ -15,8 +16,8 @@ program
   .command('status')
   .description('Check connection to a running Jig-enabled app')
   .option('-H, --host <host>', 'Host to connect to', 'localhost')
-  .option('-p, --port <port>', 'Port to connect to', '4042')
-  .option('-t, --timeout <ms>', 'Connection timeout in ms', '5000')
+  .option('-p, --port <port>', 'Port to connect to', String(DEFAULT_PORT))
+  .option('-t, --timeout <ms>', 'Connection timeout in ms', String(DEFAULT_CONNECT_TIMEOUT))
   .action(async (opts) => {
     try {
       const output = await status({
@@ -24,13 +25,11 @@ program
         port: parseInt(opts.port, 10),
         timeout: parseInt(opts.timeout, 10),
         clientName: '@jig/cli',
-        clientVersion: '0.1.0',
+        clientVersion: CLIENT_VERSION,
       });
       console.log(output);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`✗ ${message}`);
-      process.exit(1);
+      handleError(err);
     }
   });
 
@@ -38,9 +37,9 @@ program
   .command('wait')
   .description('Wait for a Jig-enabled app to become reachable')
   .option('-H, --host <host>', 'Host to connect to', 'localhost')
-  .option('-p, --port <port>', 'Port to connect to', '4042')
-  .option('-t, --timeout <ms>', 'Total timeout in ms', '30000')
-  .option('-i, --interval <ms>', 'Retry interval in ms', '1000')
+  .option('-p, --port <port>', 'Port to connect to', String(DEFAULT_PORT))
+  .option('-t, --timeout <ms>', 'Total timeout in ms', String(DEFAULT_WAIT_TIMEOUT))
+  .option('-i, --interval <ms>', 'Retry interval in ms', String(DEFAULT_RETRY_INTERVAL))
   .action(async (opts) => {
     try {
       const output = await wait({
@@ -51,9 +50,7 @@ program
       });
       console.log(output);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`✗ ${message}`);
-      process.exit(1);
+      handleError(err);
     }
   });
 
@@ -63,7 +60,7 @@ program
   .argument('<app-path>', 'Path to the .app bundle or .apk file')
   .option('--framework <path>', 'Path to Jig.framework for iOS (auto-detected if omitted)')
   .option('--libjig <path>', 'Path to libjig.so directory for Android (auto-detected if omitted)')
-  .option('-p, --port <port>', 'Jig server port', '4042')
+  .option('-p, --port <port>', 'Jig server port', String(DEFAULT_PORT))
   .option('--skip-verify', 'Skip SHA-256 integrity check', false)
   .option('--device <profile>', 'Boot a device from jig.devices.yml profile before launching')
   .option('--no-device', 'Skip auto-booting a device if none is running')
@@ -80,10 +77,14 @@ program
       });
       console.log(output);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`✗ ${message}`);
-      process.exit(1);
+      handleError(err);
     }
   });
+
+function handleError(err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`✗ ${message}`);
+  process.exit(1);
+}
 
 program.parse();

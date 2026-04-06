@@ -6,6 +6,13 @@ import type {
   FindElementResult,
   FindElementsResult,
 } from '@jig/protocol';
+import {
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  DEFAULT_CONNECT_TIMEOUT,
+  DEFAULT_COMMAND_TIMEOUT,
+  CLIENT_VERSION,
+} from '@jig/protocol';
 import { JigError } from '../errors';
 
 export interface ConnectOptions {
@@ -28,11 +35,11 @@ export interface Session {
 
 export function connect(options: ConnectOptions = {}): Promise<Session> {
   const {
-    host = 'localhost',
-    port = 4042,
-    timeout = 5000,
+    host = DEFAULT_HOST,
+    port = DEFAULT_PORT,
+    timeout = DEFAULT_CONNECT_TIMEOUT,
     clientName = '@jig/sdk',
-    clientVersion = '0.1.0',
+    clientVersion = CLIENT_VERSION,
   } = options;
   const url = `ws://${host}:${port}`;
 
@@ -89,7 +96,7 @@ function createSession(
 ): Session {
   let nextId = 2; // 1 was used for client.hello
   const pending = new Map<number, {
-    resolve: (result: any) => void;
+    resolve: (result: unknown) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
   }>();
@@ -112,7 +119,7 @@ function createSession(
     pending.clear();
   });
   ws.on('message', (raw: WebSocket.RawData) => {
-    let msg: any;
+    let msg: { id?: number; error?: { code: number; message: string; data?: unknown }; result?: unknown };
     try {
       msg = JSON.parse(raw.toString());
     } catch {
@@ -142,9 +149,9 @@ function createSession(
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Command '${method}' timed out after 30000ms`));
-      }, 30000);
-      pending.set(id, { resolve, reject, timer });
+        reject(new Error(`Command '${method}' timed out after ${DEFAULT_COMMAND_TIMEOUT}ms`));
+      }, DEFAULT_COMMAND_TIMEOUT);
+      pending.set(id, { resolve: resolve as (result: unknown) => void, reject, timer });
       ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} }));
     });
   }
