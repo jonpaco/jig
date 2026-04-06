@@ -16,7 +16,7 @@
 .end method
 
 .method public onPixelCopyFinished(I)V
-    .locals 1
+    .locals 2
     .param p1, "copyResult"
 
     # result[0] = copyResult
