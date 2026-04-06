@@ -64,6 +64,7 @@ add_library(jig_core STATIC
     jig_dispatcher.c
     jig_server.c
     jig_selector.c
+    jig_suggestions.c
     handlers/jig_handshake.c
     middleware/jig_handshake_gate.c
     middleware/jig_domain_guard.c
@@ -110,3 +111,7 @@ add_test(NAME test_server COMMAND test_server)
 add_executable(test_selector tests/test_selector.c)
 target_link_libraries(test_selector jig_core)
 add_test(NAME test_selector COMMAND test_selector)
+
+add_executable(test_suggestions tests/test_suggestions.c)
+target_link_libraries(test_suggestions jig_core)
+add_test(NAME test_suggestions COMMAND test_suggestions)
