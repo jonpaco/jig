@@ -6,6 +6,13 @@ import type {
   FindElementResult,
   FindElementsResult,
 } from '@jig/protocol';
+import {
+  DEFAULT_HOST,
+  DEFAULT_PORT,
+  DEFAULT_CONNECT_TIMEOUT,
+  DEFAULT_COMMAND_TIMEOUT,
+  CLIENT_VERSION,
+} from '@jig/protocol';
 import { JigError } from '../errors';
 
 export interface ConnectOptions {
@@ -28,11 +35,11 @@ export interface Session {
 
 export function connect(options: ConnectOptions = {}): Promise<Session> {
   const {
-    host = 'localhost',
-    port = 4042,
-    timeout = 5000,
+    host = DEFAULT_HOST,
+    port = DEFAULT_PORT,
+    timeout = DEFAULT_CONNECT_TIMEOUT,
     clientName = '@jig/sdk',
-    clientVersion = '0.1.0',
+    clientVersion = CLIENT_VERSION,
   } = options;
   const url = `ws://${host}:${port}`;
 
@@ -142,8 +149,8 @@ function createSession(
       const id = nextId++;
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Command '${method}' timed out after 30000ms`));
-      }, 30000);
+        reject(new Error(`Command '${method}' timed out after ${DEFAULT_COMMAND_TIMEOUT}ms`));
+      }, DEFAULT_COMMAND_TIMEOUT);
       pending.set(id, { resolve, reject, timer });
       ws.send(JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} }));
     });
