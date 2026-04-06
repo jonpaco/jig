@@ -5,7 +5,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import { injectApk, getPackageAndActivity } from './inject';
-import { resolveLibjigDir } from './resolve';
+import { resolveLibjigDir, resolveHelpersDex, resolveDexPatcher } from './resolve';
 import { ensureDevice } from './emulator';
 import fs from 'fs';
 
@@ -34,9 +34,8 @@ export async function launchAndroid(options: AndroidLaunchOptions): Promise<stri
   const libjigDir = resolveLibjigDir(libjig);
 
   // Inject into APK
-  const nativeRoot = path.resolve(libjigDir, '..', '..');
-  const helpersDexPath = path.join(nativeRoot, 'build', 'dex', 'jig-helpers.dex');
-  const dexPatcherJarPath = path.join(nativeRoot, 'android', 'dex-patcher', 'build', 'libs', 'jig-dex-patcher.jar');
+  const helpersDexPath = resolveHelpersDex();
+  const dexPatcherJarPath = resolveDexPatcher();
 
   const patchedApk = await injectApk({
     apkPath,
