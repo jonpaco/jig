@@ -35,8 +35,8 @@ static int compare_scored(const void *a, const void *b) {
 }
 
 static const char *get_search_string(const cJSON *selector) {
-    static const char *fields[] = {"testID", "text", "component"};
-    for (int i = 0; i < 3; i++) {
+    static const char *fields[] = {"testID", "text"};
+    for (int i = 0; i < 2; i++) {
         cJSON *val = cJSON_GetObjectItemCaseSensitive(selector, fields[i]);
         if (val && cJSON_IsString(val)) return val->valuestring;
     }
@@ -59,8 +59,8 @@ cJSON *jig_suggest_elements(const cJSON *elements, const cJSON *selector,
         cJSON *vis = cJSON_GetObjectItemCaseSensitive(el, "visible");
         if (!vis || !cJSON_IsTrue(vis)) { idx++; continue; }
         int best = INT_MAX;
-        static const char *compare_fields[] = {"testID", "text", "component"};
-        for (int f = 0; f < 3; f++) {
+        static const char *compare_fields[] = {"testID", "text"};
+        for (int f = 0; f < 2; f++) {
             cJSON *field = cJSON_GetObjectItemCaseSensitive(el, compare_fields[f]);
             if (field && cJSON_IsString(field)) {
                 int d = levenshtein(search, field->valuestring);
@@ -83,8 +83,6 @@ cJSON *jig_suggest_elements(const cJSON *elements, const cJSON *selector,
         cJSON *suggestion = cJSON_CreateObject();
         cJSON *tid = cJSON_GetObjectItemCaseSensitive(source, "testID");
         if (tid && cJSON_IsString(tid)) cJSON_AddStringToObject(suggestion, "testID", tid->valuestring);
-        cJSON *comp = cJSON_GetObjectItemCaseSensitive(source, "component");
-        if (comp && cJSON_IsString(comp)) cJSON_AddStringToObject(suggestion, "component", comp->valuestring);
         cJSON_AddItemToArray(result, suggestion);
     }
     free(scores);

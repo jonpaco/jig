@@ -15,7 +15,6 @@ bool jig_selector_matches(const cJSON *element, const cJSON *selector) {
     if (!match_string_field(element, selector, "testID")) return false;
     if (!match_string_field(element, selector, "text")) return false;
     if (!match_string_field(element, selector, "role")) return false;
-    if (!match_string_field(element, selector, "component")) return false;
     return true;
 }
 

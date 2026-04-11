@@ -21,10 +21,6 @@ text?: string
  */
 role?: string
 /**
- * React component name (from fiber tree)
- */
-component?: string
-/**
  * Screen coordinates and dimensions
  */
 frame: {

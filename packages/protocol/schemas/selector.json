@@ -16,10 +16,6 @@
       "type": "string",
       "description": "Match by accessibility role"
     },
-    "component": {
-      "type": "string",
-      "description": "Match by React component name (requires JS bridge)"
-    },
     "index": {
       "type": "integer",
       "minimum": 0,

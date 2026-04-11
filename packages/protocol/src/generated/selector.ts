@@ -17,10 +17,6 @@ text?: string
  */
 role?: string
 /**
- * Match by React component name (requires JS bridge)
- */
-component?: string
-/**
  * When multiple elements match, select the Nth (0-based)
  */
 index?: number
@@ -44,10 +40,6 @@ text?: string
  */
 role?: string
 /**
- * Match by React component name (requires JS bridge)
- */
-component?: string
-/**
  * When multiple elements match, select the Nth (0-based)
  */
 index?: number
@@ -70,10 +62,6 @@ text?: string
  * Match by accessibility role
  */
 role?: string
-/**
- * Match by React component name (requires JS bridge)
- */
-component?: string
 /**
  * When multiple elements match, select the Nth (0-based)
  */

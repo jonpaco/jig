@@ -11,7 +11,7 @@ selector: {
 
 }
 /**
- * Fuzzy-matched testID/text/component values sorted by edit distance
+ * Fuzzy-matched testID/text values sorted by edit distance
  */
 suggestions: string[]
 /**
@@ -19,7 +19,6 @@ suggestions: string[]
  */
 visibleElements: {
 testID?: string
-component?: string
 }[]
 }
 
