@@ -21,16 +21,6 @@ text?: string
  */
 role?: string
 /**
- * React component name (from fiber tree)
- */
-component?: string
-/**
- * Serializable top-level props of the React component. Only present when the selector included a props field.
- */
-props?: {
-[k: string]: (string | number | boolean | null)
-}
-/**
  * Screen coordinates and dimensions
  */
 frame: {

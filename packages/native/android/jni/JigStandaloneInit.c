@@ -22,9 +22,7 @@
 #include "../../core/middleware/jig_handshake_gate.h"
 #include "../../core/middleware/jig_domain_guard.h"
 #include "JigScreenshotShim.h"
-#include "../../core/jig_jsbridge.h"
 #include "JigElementHandler.h"
-#include "JigJSInjector.h"
 
 #define LOG_TAG "Jig"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -286,19 +284,12 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     free(proc_info.platform);
     free(proc_info.rn_version);
 
-    /* JS bridge for fiber data */
-    static jig_jsbridge *jsbridge = NULL;
-    jsbridge = jig_jsbridge_create();
-    jig_handler **bridge_handlers = jig_jsbridge_get_handlers(jsbridge);
-
     /* Handlers — must be static since the dispatcher stores pointers, not copies */
-    static jig_handler *handlers[6];
+    static jig_handler *handlers[4];
     handlers[0] = jig_handshake_create();
     handlers[1] = jig_screenshot_handler_create();
-    handlers[2] = jig_android_find_element_handler_create(jsbridge);
-    handlers[3] = jig_android_find_elements_handler_create(jsbridge);
-    handlers[4] = bridge_handlers[0]; /* jig.internal.ready */
-    handlers[5] = bridge_handlers[1]; /* jig.internal.fiberData */
+    handlers[2] = jig_android_find_element_handler_create();
+    handlers[3] = jig_android_find_elements_handler_create();
 
     /* Middleware — must be static for the same reason */
     static jig_middleware middlewares[2];
@@ -308,7 +299,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
     /* Dispatcher */
     jig_dispatcher_config *dispatcher = jig_dispatcher_create(
         middlewares, 2,
-        handlers, 6,
+        handlers, 4,
         NULL, 0
     );
 
@@ -329,9 +320,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_VERSION_1_6;
     }
     pthread_detach(tid);
-
-    /* Start JS injector (polls for ReactContext, injects fiber walker) */
-    jig_android_start_js_injector(env);
 
     LOGI("Jig standalone server started on port 4042");
 

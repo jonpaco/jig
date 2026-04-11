@@ -12,7 +12,6 @@ add_library(jig SHARED
     JigStandaloneInit.c
     JigScreenshotShim.c
     JigViewWalker.c
-    JigJSInjector.c
     JigElementHandler.c
 )
 target_link_libraries(jig PRIVATE jig_core)
