@@ -11,15 +11,14 @@
     "suggestions": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Fuzzy-matched testID/text/component values sorted by edit distance"
+      "description": "Fuzzy-matched testID/text values sorted by edit distance"
     },
     "visibleElements": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "testID": { "type": "string" },
-          "component": { "type": "string" }
+          "testID": { "type": "string" }
         },
         "additionalProperties": false
       },

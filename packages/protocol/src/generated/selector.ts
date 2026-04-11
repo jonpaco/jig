@@ -17,16 +17,6 @@ text?: string
  */
 role?: string
 /**
- * Match by React component name (requires JS bridge)
- */
-component?: string
-/**
- * Match elements by React component props. Partial match — element must have at least these top-level keys with equal values. Only scalar values (string, number, boolean, null) are supported.
- */
-props?: {
-[k: string]: (string | number | boolean | null)
-}
-/**
  * When multiple elements match, select the Nth (0-based)
  */
 index?: number
@@ -50,16 +40,6 @@ text?: string
  */
 role?: string
 /**
- * Match by React component name (requires JS bridge)
- */
-component?: string
-/**
- * Match elements by React component props. Partial match — element must have at least these top-level keys with equal values. Only scalar values (string, number, boolean, null) are supported.
- */
-props?: {
-[k: string]: (string | number | boolean | null)
-}
-/**
  * When multiple elements match, select the Nth (0-based)
  */
 index?: number
@@ -82,16 +62,6 @@ text?: string
  * Match by accessibility role
  */
 role?: string
-/**
- * Match by React component name (requires JS bridge)
- */
-component?: string
-/**
- * Match elements by React component props. Partial match — element must have at least these top-level keys with equal values. Only scalar values (string, number, boolean, null) are supported.
- */
-props?: {
-[k: string]: (string | number | boolean | null)
-}
 /**
  * When multiple elements match, select the Nth (0-based)
  */

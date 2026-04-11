@@ -68,7 +68,6 @@ add_library(jig_core STATIC
     handlers/jig_handshake.c
     middleware/jig_handshake_gate.c
     middleware/jig_domain_guard.c
-    jig_jsbridge.c
 )
 target_include_directories(jig_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(jig_core PUBLIC ${libwebsockets_BINARY_DIR}/include)
@@ -117,6 +116,3 @@ add_executable(test_suggestions tests/test_suggestions.c)
 target_link_libraries(test_suggestions jig_core)
 add_test(NAME test_suggestions COMMAND test_suggestions)
 
-add_executable(test_jsbridge tests/test_jsbridge.c)
-target_link_libraries(test_jsbridge jig_core)
-add_test(NAME test_jsbridge COMMAND test_jsbridge)

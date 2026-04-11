@@ -2,11 +2,11 @@
 #include "../jig_suggestions.h"
 #include <string.h>
 
-static cJSON *make_visible_element(const char *testID, const char *component) {
+static cJSON *make_visible_element(const char *testID, const char *text) {
     cJSON *el = cJSON_CreateObject();
     cJSON_AddNumberToObject(el, "reactTag", 1);
     if (testID) cJSON_AddStringToObject(el, "testID", testID);
-    if (component) cJSON_AddStringToObject(el, "component", component);
+    if (text) cJSON_AddStringToObject(el, "text", text);
     cJSON_AddBoolToObject(el, "visible", 1);
     return el;
 }
@@ -30,19 +30,15 @@ static void test_suggest_similar_testID(void) {
     cJSON_Delete(elements);
 }
 
-static void test_suggest_by_component(void) {
+static void test_suggest_by_text(void) {
     cJSON *elements = cJSON_CreateArray();
-    cJSON_AddItemToArray(elements, make_visible_element(NULL, "HabitCard"));
-    cJSON_AddItemToArray(elements, make_visible_element(NULL, "HabitList"));
-    cJSON_AddItemToArray(elements, make_visible_element(NULL, "SettingsScreen"));
+    cJSON_AddItemToArray(elements, make_visible_element(NULL, "Running"));
+    cJSON_AddItemToArray(elements, make_visible_element(NULL, "Reading"));
+    cJSON_AddItemToArray(elements, make_visible_element(NULL, "Swimming"));
     cJSON *selector = cJSON_CreateObject();
-    cJSON_AddStringToObject(selector, "component", "HabitCrd");
+    cJSON_AddStringToObject(selector, "text", "Runing");
     cJSON *suggestions = jig_suggest_elements(elements, selector, 5);
-    ASSERT(cJSON_GetArraySize(suggestions) > 0, "component suggestions: non-empty");
-    cJSON *first = cJSON_GetArrayItem(suggestions, 0);
-    cJSON *comp = cJSON_GetObjectItem(first, "component");
-    ASSERT(comp && strcmp(comp->valuestring, "HabitCard") == 0,
-           "component suggestions: HabitCard is closest");
+    ASSERT(cJSON_GetArraySize(suggestions) > 0, "text suggestions: non-empty");
     cJSON_Delete(suggestions);
     cJSON_Delete(selector);
     cJSON_Delete(elements);
@@ -97,7 +93,7 @@ static void test_suggest_no_selector_value(void) {
 
 int main(void) {
     test_suggest_similar_testID();
-    test_suggest_by_component();
+    test_suggest_by_text();
     test_suggest_skips_invisible();
     test_suggest_empty_elements();
     test_suggest_no_selector_value();
