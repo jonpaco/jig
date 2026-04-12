@@ -19,10 +19,19 @@ static char *jstring_to_cstr(JNIEnv *env, jstring jstr) {
 
 static const char *role_from_classname(const char *classname) {
     if (!classname) return NULL;
-    if (strcmp(classname, "android.widget.Button") == 0) return "button";
-    if (strcmp(classname, "android.widget.ImageButton") == 0) return "button";
-    if (strcmp(classname, "android.widget.ImageView") == 0) return "image";
-    if (strcmp(classname, "android.widget.SeekBar") == 0) return "adjustable";
+    size_t len = strlen(classname);
+
+    /* Longer suffixes first to avoid false matches */
+    if (len >= 11 && strcmp(classname + len - 11, "ImageButton") == 0) return "button";
+    if (len >= 9 && strcmp(classname + len - 9, "ImageView") == 0) return "image";
+    if (len >= 10 && strcmp(classname + len - 10, "ScrollView") == 0) return "scrollview";
+    if (len >= 8 && strcmp(classname + len - 8, "TextView") == 0) return "text";
+    if (len >= 8 && strcmp(classname + len - 8, "EditText") == 0) return "textbox";
+    if (len >= 6 && strcmp(classname + len - 6, "Button") == 0) return "button";
+    if (len >= 7 && strcmp(classname + len - 7, "SeekBar") == 0) return "adjustable";
+    if (len >= 6 && strcmp(classname + len - 6, "Switch") == 0) return "switch";
+    if (strcmp(classname, "android.widget.CheckBox") == 0) return "checkbox";
+
     return NULL;
 }
 
