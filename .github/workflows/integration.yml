@@ -85,82 +85,84 @@ jobs:
             (async () => {
               const session = await connect();
 
-              // Test 1: findElements with empty selector returns non-empty list
+              // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
-              if (all.elements.length === 0) throw new Error('findElements returned empty');
               console.log('findElements: ' + all.elements.length + ' elements found');
-
-              // Test 2: findElement with a known testID
-              let foundByTestID = false;
-              let testIDElement = null;
-              for (const el of all.elements) {
-                if (el.testID) {
-                  const result = await session.findElement({ testID: el.testID });
-                  if (result.element.reactTag !== el.reactTag) {
-                    throw new Error('testID lookup returned wrong element');
-                  }
-                  console.log('findElement by testID: found ' + el.testID);
-                  testIDElement = el;
-                  foundByTestID = true;
-                  break;
-                }
+              if (all.elements.length < 15) {
+                throw new Error('Expected at least 15 elements, got ' + all.elements.length);
               }
-              if (!foundByTestID) console.log('WARN: no elements with testID found');
 
-              // Test 3: findElement with nonexistent testID returns ELEMENT_NOT_FOUND
+              // Test 2: At least one element has testID
+              const withTestID = all.elements.find(el => el.testID);
+              if (!withTestID) {
+                throw new Error('No elements with testID found — test app must have testID props');
+              }
+              const byTestID = await session.findElement({ testID: withTestID.testID });
+              if (byTestID.element.reactTag !== withTestID.reactTag) {
+                throw new Error('testID lookup returned wrong element');
+              }
+              console.log('findElement by testID: ' + withTestID.testID);
+
+              // Test 3: Find known Jig testID
+              const homeScreen = await session.findElement({ testID: 'jig-home-screen' });
+              if (!homeScreen.element || homeScreen.element.testID !== 'jig-home-screen') {
+                throw new Error('Could not find jig-home-screen by testID');
+              }
+              console.log('findElement jig-home-screen: found');
+
+              // Test 4: Nonexistent testID returns ELEMENT_NOT_FOUND
               try {
-                await session.findElement({ testID: 'jig-nonexistent-test-id-xyz' });
+                await session.findElement({ testID: 'jig-nonexistent-xyz' });
                 throw new Error('Expected ELEMENT_NOT_FOUND error');
               } catch (err) {
                 if (err.code !== -32002) throw new Error('Wrong error code: ' + err.code);
-                console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
+                console.log('ELEMENT_NOT_FOUND: correct error code');
               }
 
-              // Test 4: text selector
-              const withText = all.elements.find(el => el.text && el.text.length > 0);
-              if (withText) {
-                const result = await session.findElement({ text: withText.text });
-                if (result.element.text !== withText.text) throw new Error('text selector mismatch');
-                console.log('findElement by text: found \"' + withText.text + '\"');
-              } else {
-                console.log('WARN: no elements with text found');
+              // Test 5: text selector — must match non-trivial text
+              const withText = all.elements.find(el => el.text && el.text.trim().length > 0);
+              if (!withText) {
+                throw new Error('No elements with non-empty text found');
               }
+              const byText = await session.findElement({ text: withText.text });
+              if (byText.element.text !== withText.text) {
+                throw new Error('text selector mismatch');
+              }
+              console.log('findElement by text: \"' + withText.text + '\"');
 
-              // Test 5: role selector
+              // Test 6: role selector with selectivity check
               const withRole = all.elements.find(el => el.role);
-              if (withRole) {
-                const result = await session.findElement({ role: withRole.role });
-                if (!result.element.role) throw new Error('role selector returned element without role');
-                console.log('findElement by role: found role=' + withRole.role);
-
-                // Multiple role matches
-                const roleAll = await session.findElements({ role: withRole.role });
-                if (roleAll.elements.length === 0) throw new Error('findElements by role returned empty');
-                console.log('findElements by role: ' + roleAll.elements.length + ' elements with role=' + withRole.role);
-              } else {
-                console.log('WARN: no elements with role found');
+              if (!withRole) {
+                throw new Error('No elements with role found');
               }
+              const byRole = await session.findElement({ role: withRole.role });
+              if (byRole.element.role !== withRole.role) {
+                throw new Error('role selector returned element with wrong role');
+              }
+              const allByRole = await session.findElements({ role: withRole.role });
+              for (const el of allByRole.elements) {
+                if (el.role !== withRole.role) {
+                  throw new Error('findElements({role}) returned element with role=' + el.role + ', expected ' + withRole.role);
+                }
+              }
+              console.log('findElement by role: ' + withRole.role + ' (' + allByRole.elements.length + ' total, all match)');
 
-              // Test 6: AND logic (text + role)
-              const withTextAndRole = all.elements.find(el => el.text && el.role);
+              // Test 7: AND selector (text + role)
+              const withTextAndRole = all.elements.find(el => el.text && el.text.trim().length > 0 && el.role);
               if (withTextAndRole) {
-                const result = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
-                if (result.element.text !== withTextAndRole.text || result.element.role !== withTextAndRole.role) {
+                const byAnd = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
+                if (byAnd.element.text !== withTextAndRole.text || byAnd.element.role !== withTextAndRole.role) {
                   throw new Error('AND selector mismatch');
                 }
-                console.log('findElement AND logic: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
+                console.log('AND selector: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
               } else {
-                console.log('WARN: no elements with both text and role found');
+                throw new Error('No elements with both non-empty text and role');
               }
 
-              // Test 7: scoped query (within + selector)
-              if (testIDElement) {
-                const scoped = await session.findElements({ within: { testID: testIDElement.testID }, selector: { index: 0 } });
-                console.log('scoped query: ' + scoped.elements.length + ' elements within testID=' + testIDElement.testID);
-              }
-
-              // Test 8: structural validation
-              for (const el of all.elements.slice(0, 5)) {
+              // Test 8: structural validation — meaningful values
+              let hasVisibleElement = false;
+              let hasNonZeroFrame = false;
+              for (const el of all.elements) {
                 if (typeof el.frame?.x !== 'number' || typeof el.frame?.y !== 'number' ||
                     typeof el.frame?.width !== 'number' || typeof el.frame?.height !== 'number') {
                   throw new Error('Element ' + el.reactTag + ' has invalid frame: ' + JSON.stringify(el.frame));
@@ -168,11 +170,15 @@ jobs:
                 if (typeof el.visible !== 'boolean') {
                   throw new Error('Element ' + el.reactTag + ' has non-boolean visible: ' + el.visible);
                 }
+                if (el.visible) hasVisibleElement = true;
+                if (el.frame.width > 0 && el.frame.height > 0) hasNonZeroFrame = true;
               }
-              console.log('structural validation: frame and visible fields valid');
+              if (!hasVisibleElement) throw new Error('No visible elements found');
+              if (!hasNonZeroFrame) throw new Error('No elements with non-zero frame dimensions');
+              console.log('structural validation: passed');
 
               session.disconnect();
-              console.log('Element selection verification passed');
+              console.log('All element selection tests passed');
             })();
           "
 
@@ -278,82 +284,84 @@ jobs:
             (async () => {
               const session = await connect();
 
-              // Test 1: findElements with empty selector returns non-empty list
+              // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
-              if (all.elements.length === 0) throw new Error('findElements returned empty');
               console.log('findElements: ' + all.elements.length + ' elements found');
-
-              // Test 2: findElement with a known testID
-              let foundByTestID = false;
-              let testIDElement = null;
-              for (const el of all.elements) {
-                if (el.testID) {
-                  const result = await session.findElement({ testID: el.testID });
-                  if (result.element.reactTag !== el.reactTag) {
-                    throw new Error('testID lookup returned wrong element');
-                  }
-                  console.log('findElement by testID: found ' + el.testID);
-                  testIDElement = el;
-                  foundByTestID = true;
-                  break;
-                }
+              if (all.elements.length < 10) {
+                throw new Error('Expected at least 10 elements, got ' + all.elements.length);
               }
-              if (!foundByTestID) console.log('WARN: no elements with testID found');
 
-              // Test 3: findElement with nonexistent testID returns ELEMENT_NOT_FOUND
+              // Test 2: At least one element has testID
+              const withTestID = all.elements.find(el => el.testID);
+              if (!withTestID) {
+                throw new Error('No elements with testID found — test app must have testID props');
+              }
+              const byTestID = await session.findElement({ testID: withTestID.testID });
+              if (byTestID.element.reactTag !== withTestID.reactTag) {
+                throw new Error('testID lookup returned wrong element');
+              }
+              console.log('findElement by testID: ' + withTestID.testID);
+
+              // Test 3: Find known Jig testID
+              const homeScreen = await session.findElement({ testID: 'jig-home-screen' });
+              if (!homeScreen.element || homeScreen.element.testID !== 'jig-home-screen') {
+                throw new Error('Could not find jig-home-screen by testID');
+              }
+              console.log('findElement jig-home-screen: found');
+
+              // Test 4: Nonexistent testID returns ELEMENT_NOT_FOUND
               try {
-                await session.findElement({ testID: 'jig-nonexistent-test-id-xyz' });
+                await session.findElement({ testID: 'jig-nonexistent-xyz' });
                 throw new Error('Expected ELEMENT_NOT_FOUND error');
               } catch (err) {
                 if (err.code !== -32002) throw new Error('Wrong error code: ' + err.code);
-                console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
+                console.log('ELEMENT_NOT_FOUND: correct error code');
               }
 
-              // Test 4: text selector
-              const withText = all.elements.find(el => el.text && el.text.length > 0);
-              if (withText) {
-                const result = await session.findElement({ text: withText.text });
-                if (result.element.text !== withText.text) throw new Error('text selector mismatch');
-                console.log('findElement by text: found \"' + withText.text + '\"');
-              } else {
-                console.log('WARN: no elements with text found');
+              // Test 5: text selector — must match non-trivial text
+              const withText = all.elements.find(el => el.text && el.text.trim().length > 0);
+              if (!withText) {
+                throw new Error('No elements with non-empty text found');
               }
+              const byText = await session.findElement({ text: withText.text });
+              if (byText.element.text !== withText.text) {
+                throw new Error('text selector mismatch');
+              }
+              console.log('findElement by text: \"' + withText.text + '\"');
 
-              // Test 5: role selector
+              // Test 6: role selector with selectivity check
               const withRole = all.elements.find(el => el.role);
-              if (withRole) {
-                const result = await session.findElement({ role: withRole.role });
-                if (!result.element.role) throw new Error('role selector returned element without role');
-                console.log('findElement by role: found role=' + withRole.role);
-
-                // Multiple role matches
-                const roleAll = await session.findElements({ role: withRole.role });
-                if (roleAll.elements.length === 0) throw new Error('findElements by role returned empty');
-                console.log('findElements by role: ' + roleAll.elements.length + ' elements with role=' + withRole.role);
-              } else {
-                console.log('WARN: no elements with role found');
+              if (!withRole) {
+                throw new Error('No elements with role found');
               }
+              const byRole = await session.findElement({ role: withRole.role });
+              if (byRole.element.role !== withRole.role) {
+                throw new Error('role selector returned element with wrong role');
+              }
+              const allByRole = await session.findElements({ role: withRole.role });
+              for (const el of allByRole.elements) {
+                if (el.role !== withRole.role) {
+                  throw new Error('findElements({role}) returned element with role=' + el.role + ', expected ' + withRole.role);
+                }
+              }
+              console.log('findElement by role: ' + withRole.role + ' (' + allByRole.elements.length + ' total, all match)');
 
-              // Test 6: AND logic (text + role)
-              const withTextAndRole = all.elements.find(el => el.text && el.role);
+              // Test 7: AND selector (text + role)
+              const withTextAndRole = all.elements.find(el => el.text && el.text.trim().length > 0 && el.role);
               if (withTextAndRole) {
-                const result = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
-                if (result.element.text !== withTextAndRole.text || result.element.role !== withTextAndRole.role) {
+                const byAnd = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
+                if (byAnd.element.text !== withTextAndRole.text || byAnd.element.role !== withTextAndRole.role) {
                   throw new Error('AND selector mismatch');
                 }
-                console.log('findElement AND logic: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
+                console.log('AND selector: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
               } else {
-                console.log('WARN: no elements with both text and role found');
+                throw new Error('No elements with both non-empty text and role');
               }
 
-              // Test 7: scoped query (within + selector)
-              if (testIDElement) {
-                const scoped = await session.findElements({ within: { testID: testIDElement.testID }, selector: { index: 0 } });
-                console.log('scoped query: ' + scoped.elements.length + ' elements within testID=' + testIDElement.testID);
-              }
-
-              // Test 8: structural validation
-              for (const el of all.elements.slice(0, 5)) {
+              // Test 8: structural validation — meaningful values
+              let hasVisibleElement = false;
+              let hasNonZeroFrame = false;
+              for (const el of all.elements) {
                 if (typeof el.frame?.x !== 'number' || typeof el.frame?.y !== 'number' ||
                     typeof el.frame?.width !== 'number' || typeof el.frame?.height !== 'number') {
                   throw new Error('Element ' + el.reactTag + ' has invalid frame: ' + JSON.stringify(el.frame));
@@ -361,11 +369,15 @@ jobs:
                 if (typeof el.visible !== 'boolean') {
                   throw new Error('Element ' + el.reactTag + ' has non-boolean visible: ' + el.visible);
                 }
+                if (el.visible) hasVisibleElement = true;
+                if (el.frame.width > 0 && el.frame.height > 0) hasNonZeroFrame = true;
               }
-              console.log('structural validation: frame and visible fields valid');
+              if (!hasVisibleElement) throw new Error('No visible elements found');
+              if (!hasNonZeroFrame) throw new Error('No elements with non-zero frame dimensions');
+              console.log('structural validation: passed');
 
               session.disconnect();
-              console.log('Element selection verification passed');
+              console.log('All element selection tests passed');
             })();
           "
 
