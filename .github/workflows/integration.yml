@@ -99,7 +99,7 @@ jobs:
                 }
               }
               if (!homeScreen) throw new Error('App did not render jig-home-screen within 20s');
-              console.log('\\nApp ready: jig-home-screen found');
+              console.log('App ready: jig-home-screen found');
 
               // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
@@ -307,7 +307,7 @@ jobs:
                 }
               }
               if (!homeScreen) throw new Error('App did not render jig-home-screen within 30s');
-              console.log('\\nApp ready: jig-home-screen found');
+              console.log('App ready: jig-home-screen found');
 
               // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
@@ -326,8 +326,6 @@ jobs:
                 throw new Error('testID lookup returned wrong element');
               }
               console.log('findElement by testID: ' + withTestID.testID);
-              }
-              console.log('findElement jig-home-screen: found');
 
               // Test 4: Nonexistent testID returns ELEMENT_NOT_FOUND
               try {
