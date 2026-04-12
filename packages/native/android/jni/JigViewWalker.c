@@ -35,18 +35,39 @@ static void walk_view(JNIEnv *env, jobject view, int parent_tag,
     jmethodID getContentDescMethod = (*env)->GetMethodID(
         env, view_class, "getContentDescription", "()Ljava/lang/CharSequence;");
     jobject contentDesc = (*env)->CallObjectMethod(env, view, getContentDescMethod);
-    char *testID = NULL;
+    char *contentDescStr = NULL;
     if (contentDesc) {
         jmethodID toStringMethod = (*env)->GetMethodID(
             env, (*env)->GetObjectClass(env, contentDesc), "toString",
             "()Ljava/lang/String;");
         jstring contentStr = (*env)->CallObjectMethod(env, contentDesc, toStringMethod);
-        testID = jstring_to_cstr(env, contentStr);
+        contentDescStr = jstring_to_cstr(env, contentStr);
         (*env)->DeleteLocalRef(env, contentStr);
         (*env)->DeleteLocalRef(env, contentDesc);
     }
 
-    if (viewId <= 0 && !testID) {
+    /* Extract text from TextView.getText() before the filter gate */
+    char *textContent = NULL;
+    if ((*env)->IsInstanceOf(env, view, textview_class)) {
+        jmethodID getText = (*env)->GetMethodID(
+            env, textview_class, "getText", "()Ljava/lang/CharSequence;");
+        jobject textObj = (*env)->CallObjectMethod(env, view, getText);
+        if (textObj) {
+            jmethodID toString = (*env)->GetMethodID(
+                env, (*env)->GetObjectClass(env, textObj), "toString",
+                "()Ljava/lang/String;");
+            jstring textStr = (*env)->CallObjectMethod(env, textObj, toString);
+            textContent = jstring_to_cstr(env, textStr);
+            if (textContent && strlen(textContent) == 0) {
+                free(textContent);
+                textContent = NULL;
+            }
+            (*env)->DeleteLocalRef(env, textStr);
+            (*env)->DeleteLocalRef(env, textObj);
+        }
+    }
+
+    if (viewId <= 0 && !contentDescStr && !textContent) {
         if ((*env)->IsInstanceOf(env, view, viewgroup_class)) {
             jmethodID getChildCount = (*env)->GetMethodID(
                 env, viewgroup_class, "getChildCount", "()I");
@@ -62,7 +83,8 @@ static void walk_view(JNIEnv *env, jobject view, int parent_tag,
                 }
             }
         }
-        free(testID);
+        free(contentDescStr);
+        free(textContent);
         return;
     }
 
@@ -73,29 +95,14 @@ static void walk_view(JNIEnv *env, jobject view, int parent_tag,
         cJSON_AddNumberToObject(el, "parentReactTag", parent_tag);
     }
 
-    if (testID) {
-        cJSON_AddStringToObject(el, "testID", testID);
-        free(testID);
+    /* text = textContent ?? contentDescStr */
+    if (textContent) {
+        cJSON_AddStringToObject(el, "text", textContent);
+        free(textContent);
+    } else if (contentDescStr) {
+        cJSON_AddStringToObject(el, "text", contentDescStr);
     }
-
-    if ((*env)->IsInstanceOf(env, view, textview_class)) {
-        jmethodID getText = (*env)->GetMethodID(
-            env, textview_class, "getText", "()Ljava/lang/CharSequence;");
-        jobject textObj = (*env)->CallObjectMethod(env, view, getText);
-        if (textObj) {
-            jmethodID toString = (*env)->GetMethodID(
-                env, (*env)->GetObjectClass(env, textObj), "toString",
-                "()Ljava/lang/String;");
-            jstring textStr = (*env)->CallObjectMethod(env, textObj, toString);
-            char *text = jstring_to_cstr(env, textStr);
-            if (text && strlen(text) > 0) {
-                cJSON_AddStringToObject(el, "text", text);
-            }
-            free(text);
-            (*env)->DeleteLocalRef(env, textStr);
-            (*env)->DeleteLocalRef(env, textObj);
-        }
-    }
+    free(contentDescStr);
 
     /* --- Role extraction via accessibility API --- */
     {
