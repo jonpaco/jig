@@ -17,6 +17,15 @@ static char *jstring_to_cstr(JNIEnv *env, jstring jstr) {
     return copy;
 }
 
+static const char *role_from_classname(const char *classname) {
+    if (!classname) return NULL;
+    if (strcmp(classname, "android.widget.Button") == 0) return "button";
+    if (strcmp(classname, "android.widget.ImageButton") == 0) return "button";
+    if (strcmp(classname, "android.widget.ImageView") == 0) return "image";
+    if (strcmp(classname, "android.widget.SeekBar") == 0) return "adjustable";
+    return NULL;
+}
+
 static void walk_view(JNIEnv *env, jobject view, int parent_tag,
                       cJSON *results, jclass view_class, jclass viewgroup_class,
                       jclass textview_class) {
@@ -85,6 +94,78 @@ static void walk_view(JNIEnv *env, jobject view, int parent_tag,
             free(text);
             (*env)->DeleteLocalRef(env, textStr);
             (*env)->DeleteLocalRef(env, textObj);
+        }
+    }
+
+    /* --- Role extraction via accessibility API --- */
+    {
+        jmethodID createNodeInfo = (*env)->GetMethodID(
+            env, view_class, "createAccessibilityNodeInfo",
+            "()Landroid/view/accessibility/AccessibilityNodeInfo;");
+        jobject nodeInfo = (*env)->CallObjectMethod(env, view, createNodeInfo);
+        if (nodeInfo) {
+            const char *role = NULL;
+            jclass nodeClass = (*env)->GetObjectClass(env, nodeInfo);
+
+            /* Try className mapping first */
+            jmethodID getClassName = (*env)->GetMethodID(
+                env, nodeClass, "getClassName", "()Ljava/lang/CharSequence;");
+            jobject classNameObj = (*env)->CallObjectMethod(env, nodeInfo, getClassName);
+            if (classNameObj) {
+                jmethodID toString = (*env)->GetMethodID(
+                    env, (*env)->GetObjectClass(env, classNameObj), "toString",
+                    "()Ljava/lang/String;");
+                jstring classNameStr = (*env)->CallObjectMethod(env, classNameObj, toString);
+                char *className = jstring_to_cstr(env, classNameStr);
+                role = role_from_classname(className);
+                free(className);
+                (*env)->DeleteLocalRef(env, classNameStr);
+                (*env)->DeleteLocalRef(env, classNameObj);
+            }
+
+            /* Fallback: isHeading() for header role (API 28+) */
+            if (!role) {
+                jmethodID isHeading = (*env)->GetMethodID(
+                    env, nodeClass, "isHeading", "()Z");
+                if (!(*env)->ExceptionCheck(env)) {
+                    jboolean heading = (*env)->CallBooleanMethod(env, nodeInfo, isHeading);
+                    if (heading) role = "header";
+                } else {
+                    (*env)->ExceptionClear(env);
+                }
+            }
+
+            /* Fallback: getRoleDescription() for link detection */
+            if (!role) {
+                jmethodID getRoleDesc = (*env)->GetMethodID(
+                    env, nodeClass, "getRoleDescription", "()Ljava/lang/CharSequence;");
+                if (!(*env)->ExceptionCheck(env)) {
+                    jobject roleDescObj = (*env)->CallObjectMethod(env, nodeInfo, getRoleDesc);
+                    if (roleDescObj) {
+                        jmethodID toString = (*env)->GetMethodID(
+                            env, (*env)->GetObjectClass(env, roleDescObj), "toString",
+                            "()Ljava/lang/String;");
+                        jstring roleDescStr = (*env)->CallObjectMethod(env, roleDescObj, toString);
+                        char *roleDesc = jstring_to_cstr(env, roleDescStr);
+                        if (roleDesc && strcmp(roleDesc, "Link") == 0) role = "link";
+                        free(roleDesc);
+                        (*env)->DeleteLocalRef(env, roleDescStr);
+                        (*env)->DeleteLocalRef(env, roleDescObj);
+                    }
+                } else {
+                    (*env)->ExceptionClear(env);
+                }
+            }
+
+            if (role) {
+                cJSON_AddStringToObject(el, "role", role);
+            }
+
+            /* Recycle to return to the pool */
+            jmethodID recycle = (*env)->GetMethodID(env, nodeClass, "recycle", "()V");
+            (*env)->CallVoidMethod(env, nodeInfo, recycle);
+            (*env)->DeleteLocalRef(env, nodeClass);
+            (*env)->DeleteLocalRef(env, nodeInfo);
         }
     }
 
