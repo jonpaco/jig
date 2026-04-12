@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { status } from './commands/status';
 import { wait } from './commands/wait';
 import { launch } from './commands/launch';
+import { elements } from './commands/elements';
 import { DEFAULT_PORT, DEFAULT_CONNECT_TIMEOUT, DEFAULT_WAIT_TIMEOUT, DEFAULT_RETRY_INTERVAL, CLIENT_VERSION } from '@jig/protocol';
 
 const program = new Command();
@@ -76,6 +77,37 @@ program
         noDevice: opts.device === false,
       });
       console.log(output);
+    } catch (err: unknown) {
+      handleError(err);
+    }
+  });
+
+program
+  .command('elements')
+  .description('Inspect elements on screen')
+  .option('-H, --host <host>', 'Host to connect to', 'localhost')
+  .option('-p, --port <port>', 'Port to connect to', String(DEFAULT_PORT))
+  .option('-t, --timeout <ms>', 'Connection timeout in ms', String(DEFAULT_CONNECT_TIMEOUT))
+  .option('--testID <id>', 'Filter by testID')
+  .option('--text <text>', 'Filter by text content')
+  .option('--role <role>', 'Filter by accessibility role')
+  .option('--all', 'Include hidden elements', false)
+  .option('--json', 'Output raw JSON', false)
+  .action(async (opts) => {
+    try {
+      const output = await elements({
+        host: opts.host,
+        port: parseInt(opts.port, 10),
+        timeout: parseInt(opts.timeout, 10),
+        clientVersion: CLIENT_VERSION,
+        testID: opts.testID,
+        text: opts.text,
+        role: opts.role,
+        all: opts.all,
+        json: opts.json,
+      });
+      console.log(output);
+      if (output === 'No elements found') process.exit(1);
     } catch (err: unknown) {
       handleError(err);
     }
