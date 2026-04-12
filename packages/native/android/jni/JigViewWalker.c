@@ -104,6 +104,22 @@ static void walk_view(JNIEnv *env, jobject view, int parent_tag,
     }
     free(contentDescStr);
 
+    /* --- testID: React Native sets testID via View.setTag() --- */
+    jmethodID getTag = (*env)->GetMethodID(env, view_class, "getTag", "()Ljava/lang/Object;");
+    jobject tagObj = (*env)->CallObjectMethod(env, view, getTag);
+    if (tagObj) {
+        jclass stringClass = (*env)->FindClass(env, "java/lang/String");
+        if ((*env)->IsInstanceOf(env, tagObj, stringClass)) {
+            char *tagStr = jstring_to_cstr(env, (jstring)tagObj);
+            if (tagStr && strlen(tagStr) > 0) {
+                cJSON_AddStringToObject(el, "testID", tagStr);
+            }
+            free(tagStr);
+        }
+        (*env)->DeleteLocalRef(env, stringClass);
+        (*env)->DeleteLocalRef(env, tagObj);
+    }
+
     /* --- Role extraction via accessibility API --- */
     {
         jmethodID createNodeInfo = (*env)->GetMethodID(
