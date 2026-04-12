@@ -32,18 +32,6 @@ pnpm monorepo:
 - **dex-patcher**: Gradle project using dexlib2. Inserts `System.loadLibrary("jig")` into a DEX class's `<clinit>`. Used by the inject pipeline (`packages/cli/src/android/inject.ts`).
 - **zip.ts** (`packages/cli/src/android/zip.ts`): ZIP manipulation utilities for APK injection — add/replace/extract entries without apktool. Preserves original compression methods (critical: `resources.arsc` and `.so` must stay uncompressed).
 
-### Android Build Tools
-
-| Tool | Path | Build command | Output |
-|------|------|---------------|--------|
-| libjig.so | `scripts/build-so.sh` | `bash scripts/build-so.sh` | `packages/native/build/android/<abi>/libjig.so` |
-| jig-helpers.dex | `packages/native/scripts/build-dex.sh` | `pnpm build:dex` (in `@jig/native`) | `packages/native/build/dex/jig-helpers.dex` |
-| jig-dex-patcher.jar | `packages/native/android/dex-patcher/` | `pnpm build:dex-patcher` (in `@jig/native`) | `packages/native/android/dex-patcher/build/libs/jig-dex-patcher.jar` |
-
-- **build-dex.sh**: Compiles `packages/native/android/jni/*.java` → `.class` (javac) → `.dex` (d8). Requires `ANDROID_HOME`.
-- **dex-patcher**: Gradle project using dexlib2. Inserts `System.loadLibrary("jig")` into a DEX class's `<clinit>`. Used by the inject pipeline (`packages/cli/src/android/inject.ts`).
-- **zip.ts** (`packages/cli/src/android/zip.ts`): ZIP manipulation utilities for APK injection — add/replace/extract entries without apktool. Preserves original compression methods (critical: `resources.arsc` and `.so` must stay uncompressed).
-
 ## Conventions
 
 ### Protocol
@@ -69,7 +57,7 @@ pnpm monorepo:
 - View hierarchy: recursive `ViewGroup.getChildAt()` traversal
 - Screenshots: `PixelCopy` via `JigScreenshotHelper` JNI helper on main thread (reads from SurfaceFlinger, works on headless emulators)
 - Network interception: OkHttp interceptor via `OkHttpClientFactory`
-- testID maps to `contentDescription`
+- testID: React Native maps `testID` to `View.setTag()` + `resource-id` on Android (NOT `contentDescription`). `accessibilityLabel` maps to `contentDescription`
 - JNI helpers (`JigMainThreadRunner`, `JigActivityCallbacks`, `JigScreenshotHelper`) are compiled from Java source in `packages/native/android/jni/*.java` to `jig-helpers.dex` via `d8`. The inject pipeline adds the DEX as a multidex entry alongside `libjig.so`
 - APK injection is apktool-free: direct ZIP manipulation + `jig-dex-patcher.jar` (dexlib2) for surgical `<clinit>` patching. Resources are never decoded or rebuilt
 
@@ -96,6 +84,17 @@ pnpm monorepo:
 - TDD: write failing test first, then implement
 - Test against Habit Tracker (`jonpaco/open-source-habit-tracker-app`) for fast development loop
 - Test against Bluesky Social and Artsy Eigen for production validation
+
+### Integration Test Standards
+
+Integration tests must use hard assertions, not soft warnings. A test that silently skips when data is missing is a false green.
+
+- **No soft skips**: Every selector test must `throw` on failure. If a required element type (testID, text, role) is missing, that's a test failure, not a warning
+- **Non-trivial values**: Text matches must contain visible, non-whitespace characters (`text.trim().length > 0`). Never match on empty strings
+- **Selectivity verification**: Selector tests must verify returned elements actually match the selector (e.g., every element from `findElements({role: X})` must have `role === X`)
+- **Minimum element thresholds**: `findElements({})` must return a platform-appropriate minimum (not just `> 0`). A React Native screen should have at least 10+ elements
+- **Meaningful structural checks**: Frame validation must check for non-zero dimensions. At least some elements must be `visible: true`
+- **Local E2E before pushing native/SDK changes**: When working on `@jig/native` or `@jig/sdk`, run the local E2E flow (boot device → inject → launch → verify) before declaring work complete. Implementation plans for native/SDK work must include a local E2E verification step
 
 ## Branching
 
