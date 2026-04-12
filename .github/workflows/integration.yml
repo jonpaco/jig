@@ -85,6 +85,22 @@ jobs:
             (async () => {
               const session = await connect();
 
+              // Wait for app to render by polling for a known testID
+              let homeScreen;
+              const deadline = Date.now() + 20000;
+              while (Date.now() < deadline) {
+                try {
+                  homeScreen = await session.findElement({ testID: 'jig-home-screen' });
+                  break;
+                } catch (err) {
+                  if (err.code !== -32002) throw err;
+                  process.stdout.write('.');
+                  await new Promise(r => setTimeout(r, 500));
+                }
+              }
+              if (!homeScreen) throw new Error('App did not render jig-home-screen within 20s');
+              console.log('\\nApp ready: jig-home-screen found');
+
               // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
               console.log('findElements: ' + all.elements.length + ' elements found');
@@ -102,13 +118,6 @@ jobs:
                 throw new Error('testID lookup returned wrong element');
               }
               console.log('findElement by testID: ' + withTestID.testID);
-
-              // Test 3: Find known Jig testID
-              const homeScreen = await session.findElement({ testID: 'jig-home-screen' });
-              if (!homeScreen.element || homeScreen.element.testID !== 'jig-home-screen') {
-                throw new Error('Could not find jig-home-screen by testID');
-              }
-              console.log('findElement jig-home-screen: found');
 
               // Test 4: Nonexistent testID returns ELEMENT_NOT_FOUND
               try {
@@ -284,6 +293,22 @@ jobs:
             (async () => {
               const session = await connect();
 
+              // Wait for app to render by polling for a known testID
+              let homeScreen;
+              const deadline = Date.now() + 30000;
+              while (Date.now() < deadline) {
+                try {
+                  homeScreen = await session.findElement({ testID: 'jig-home-screen' });
+                  break;
+                } catch (err) {
+                  if (err.code !== -32002) throw err;
+                  process.stdout.write('.');
+                  await new Promise(r => setTimeout(r, 500));
+                }
+              }
+              if (!homeScreen) throw new Error('App did not render jig-home-screen within 30s');
+              console.log('\\nApp ready: jig-home-screen found');
+
               // Test 1: findElements({}) returns meaningful element count
               const all = await session.findElements({});
               console.log('findElements: ' + all.elements.length + ' elements found');
@@ -301,11 +326,6 @@ jobs:
                 throw new Error('testID lookup returned wrong element');
               }
               console.log('findElement by testID: ' + withTestID.testID);
-
-              // Test 3: Find known Jig testID
-              const homeScreen = await session.findElement({ testID: 'jig-home-screen' });
-              if (!homeScreen.element || homeScreen.element.testID !== 'jig-home-screen') {
-                throw new Error('Could not find jig-home-screen by testID');
               }
               console.log('findElement jig-home-screen: found');
 
