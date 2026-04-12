@@ -5,6 +5,7 @@ import type {
   ScreenshotResult,
   FindElementResult,
   FindElementsResult,
+  Selector,
 } from '@jig/protocol';
 import {
   DEFAULT_HOST,
@@ -28,8 +29,8 @@ export interface Session {
   readonly sessionId: string;
   send<TResult = unknown>(method: string, params?: Record<string, unknown>): Promise<TResult>;
   screenshot(params?: ScreenshotParams): Promise<ScreenshotResult>;
-  findElement(selector: Record<string, unknown>): Promise<FindElementResult>;
-  findElements(selector: Record<string, unknown>): Promise<FindElementsResult>;
+  findElement(selector: Selector): Promise<FindElementResult>;
+  findElements(selector: Selector): Promise<FindElementsResult>;
   disconnect(): void;
 }
 
@@ -172,11 +173,11 @@ function createSession(
     return send<ScreenshotResult>('jig.screenshot', wireParams);
   }
 
-  function findElement(selector: Record<string, unknown>): Promise<FindElementResult> {
+  function findElement(selector: Selector): Promise<FindElementResult> {
     return send<FindElementResult>('jig.findElement', { selector });
   }
 
-  function findElements(selector: Record<string, unknown>): Promise<FindElementsResult> {
+  function findElements(selector: Selector): Promise<FindElementsResult> {
     return send<FindElementsResult>('jig.findElements', { selector });
   }
 

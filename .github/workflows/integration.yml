@@ -92,6 +92,7 @@ jobs:
 
               // Test 2: findElement with a known testID
               let foundByTestID = false;
+              let testIDElement = null;
               for (const el of all.elements) {
                 if (el.testID) {
                   const result = await session.findElement({ testID: el.testID });
@@ -99,6 +100,7 @@ jobs:
                     throw new Error('testID lookup returned wrong element');
                   }
                   console.log('findElement by testID: found ' + el.testID);
+                  testIDElement = el;
                   foundByTestID = true;
                   break;
                 }
@@ -114,11 +116,60 @@ jobs:
                 console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
               }
 
-              // Test 4: Check for component names (JS bridge connected)
-              await new Promise(r => setTimeout(r, 3000));
-              const withBridge = await session.findElements({});
-              const withComponent = withBridge.elements.filter(e => e.component);
-              console.log('Elements with component: ' + withComponent.length + '/' + withBridge.elements.length);
+              // Test 4: text selector
+              const withText = all.elements.find(el => el.text && el.text.length > 0);
+              if (withText) {
+                const result = await session.findElement({ text: withText.text });
+                if (result.element.text !== withText.text) throw new Error('text selector mismatch');
+                console.log('findElement by text: found \"' + withText.text + '\"');
+              } else {
+                console.log('WARN: no elements with text found');
+              }
+
+              // Test 5: role selector
+              const withRole = all.elements.find(el => el.role);
+              if (withRole) {
+                const result = await session.findElement({ role: withRole.role });
+                if (!result.element.role) throw new Error('role selector returned element without role');
+                console.log('findElement by role: found role=' + withRole.role);
+
+                // Multiple role matches
+                const roleAll = await session.findElements({ role: withRole.role });
+                if (roleAll.elements.length === 0) throw new Error('findElements by role returned empty');
+                console.log('findElements by role: ' + roleAll.elements.length + ' elements with role=' + withRole.role);
+              } else {
+                console.log('WARN: no elements with role found');
+              }
+
+              // Test 6: AND logic (text + role)
+              const withTextAndRole = all.elements.find(el => el.text && el.role);
+              if (withTextAndRole) {
+                const result = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
+                if (result.element.text !== withTextAndRole.text || result.element.role !== withTextAndRole.role) {
+                  throw new Error('AND selector mismatch');
+                }
+                console.log('findElement AND logic: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
+              } else {
+                console.log('WARN: no elements with both text and role found');
+              }
+
+              // Test 7: scoped query (within + selector)
+              if (testIDElement) {
+                const scoped = await session.findElements({ within: { testID: testIDElement.testID }, selector: { index: 0 } });
+                console.log('scoped query: ' + scoped.elements.length + ' elements within testID=' + testIDElement.testID);
+              }
+
+              // Test 8: structural validation
+              for (const el of all.elements.slice(0, 5)) {
+                if (typeof el.frame?.x !== 'number' || typeof el.frame?.y !== 'number' ||
+                    typeof el.frame?.width !== 'number' || typeof el.frame?.height !== 'number') {
+                  throw new Error('Element ' + el.reactTag + ' has invalid frame: ' + JSON.stringify(el.frame));
+                }
+                if (typeof el.visible !== 'boolean') {
+                  throw new Error('Element ' + el.reactTag + ' has non-boolean visible: ' + el.visible);
+                }
+              }
+              console.log('structural validation: frame and visible fields valid');
 
               session.disconnect();
               console.log('Element selection verification passed');
@@ -209,9 +260,6 @@ jobs:
           APK_PATH=$(find /tmp/test-app -name "*.apk" | head -1)
           echo "APK_PATH=$APK_PATH" >> "$GITHUB_ENV"
 
-      - name: Push fiber walker JS
-        run: adb push packages/native/core/js/fiber-walker.js /data/local/tmp/jig-fiber-walker.js
-
       - name: Launch app with Jig
         run: |
           export PATH="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1):$PATH"
@@ -237,6 +285,7 @@ jobs:
 
               // Test 2: findElement with a known testID
               let foundByTestID = false;
+              let testIDElement = null;
               for (const el of all.elements) {
                 if (el.testID) {
                   const result = await session.findElement({ testID: el.testID });
@@ -244,6 +293,7 @@ jobs:
                     throw new Error('testID lookup returned wrong element');
                   }
                   console.log('findElement by testID: found ' + el.testID);
+                  testIDElement = el;
                   foundByTestID = true;
                   break;
                 }
@@ -259,11 +309,60 @@ jobs:
                 console.log('ELEMENT_NOT_FOUND: suggestions=' + (err.data?.suggestions?.length || 0));
               }
 
-              // Test 4: Check for component names (JS bridge connected)
-              await new Promise(r => setTimeout(r, 3000));
-              const withBridge = await session.findElements({});
-              const withComponent = withBridge.elements.filter(e => e.component);
-              console.log('Elements with component: ' + withComponent.length + '/' + withBridge.elements.length);
+              // Test 4: text selector
+              const withText = all.elements.find(el => el.text && el.text.length > 0);
+              if (withText) {
+                const result = await session.findElement({ text: withText.text });
+                if (result.element.text !== withText.text) throw new Error('text selector mismatch');
+                console.log('findElement by text: found \"' + withText.text + '\"');
+              } else {
+                console.log('WARN: no elements with text found');
+              }
+
+              // Test 5: role selector
+              const withRole = all.elements.find(el => el.role);
+              if (withRole) {
+                const result = await session.findElement({ role: withRole.role });
+                if (!result.element.role) throw new Error('role selector returned element without role');
+                console.log('findElement by role: found role=' + withRole.role);
+
+                // Multiple role matches
+                const roleAll = await session.findElements({ role: withRole.role });
+                if (roleAll.elements.length === 0) throw new Error('findElements by role returned empty');
+                console.log('findElements by role: ' + roleAll.elements.length + ' elements with role=' + withRole.role);
+              } else {
+                console.log('WARN: no elements with role found');
+              }
+
+              // Test 6: AND logic (text + role)
+              const withTextAndRole = all.elements.find(el => el.text && el.role);
+              if (withTextAndRole) {
+                const result = await session.findElement({ text: withTextAndRole.text, role: withTextAndRole.role });
+                if (result.element.text !== withTextAndRole.text || result.element.role !== withTextAndRole.role) {
+                  throw new Error('AND selector mismatch');
+                }
+                console.log('findElement AND logic: text=\"' + withTextAndRole.text + '\" + role=' + withTextAndRole.role);
+              } else {
+                console.log('WARN: no elements with both text and role found');
+              }
+
+              // Test 7: scoped query (within + selector)
+              if (testIDElement) {
+                const scoped = await session.findElements({ within: { testID: testIDElement.testID }, selector: { index: 0 } });
+                console.log('scoped query: ' + scoped.elements.length + ' elements within testID=' + testIDElement.testID);
+              }
+
+              // Test 8: structural validation
+              for (const el of all.elements.slice(0, 5)) {
+                if (typeof el.frame?.x !== 'number' || typeof el.frame?.y !== 'number' ||
+                    typeof el.frame?.width !== 'number' || typeof el.frame?.height !== 'number') {
+                  throw new Error('Element ' + el.reactTag + ' has invalid frame: ' + JSON.stringify(el.frame));
+                }
+                if (typeof el.visible !== 'boolean') {
+                  throw new Error('Element ' + el.reactTag + ' has non-boolean visible: ' + el.visible);
+                }
+              }
+              console.log('structural validation: frame and visible fields valid');
 
               session.disconnect();
               console.log('Element selection verification passed');
